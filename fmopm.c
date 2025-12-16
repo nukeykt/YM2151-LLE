@@ -156,6 +156,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->fsm_sync1[1] = chip->fsm_sync1[0];
         chip->fsm_cycle0_l = chip->fsm_cycle0;
         chip->fsm_cycle1_l = chip->fsm_cycle1;
+        chip->fsm_reg_sync[1] = chip->fsm_reg_sync[0];
     }
     if (clk2)
     {
@@ -174,8 +175,10 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
         chip->fsm_sync1[0] = (chip->fsm_sync1[1] << 1) | chip->fsm_out[5];
 
+        chip->fsm_cycle31 = (chip->fsm_sync1[0] >> 2) & 1;
         chip->fsm_cycle0 = (chip->fsm_sync1[0] >> 3) & 1;
         chip->fsm_cycle1 = (chip->fsm_sync1[0] >> 4) & 1;
+        chip->fsm_reg_sync[0] = (chip->fsm_reg_sync[1] << 1) | chip->fsm_out[10];
     }
 
     if (clk1)
@@ -203,6 +206,9 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             chip->reg_write_11[0] = chip->data1 == 0x11;
             chip->reg_write_12[0] = chip->data1 == 0x12;
             chip->reg_write_14[0] = chip->data1 == 0x14;
+            chip->reg_write_18[0] = chip->data1 == 0x18;
+            chip->reg_write_19[0] = chip->data1 == 0x19;
+            chip->reg_write_1b[0] = chip->data1 == 0x1b;
         }
         else
         {
@@ -213,7 +219,12 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             chip->reg_write_11[0] = chip->reg_write_11[1];
             chip->reg_write_12[0] = chip->reg_write_12[1];
             chip->reg_write_14[0] = chip->reg_write_14[1];
+            chip->reg_write_18[0] = chip->reg_write_18[1];
+            chip->reg_write_19[0] = chip->reg_write_19[1];
+            chip->reg_write_1b[0] = chip->reg_write_1b[1];
         }
+
+        chip->reg_lfo_freq_write = write1_en && chip->reg_write_18;
         
         if (ic)
         {
@@ -224,6 +235,15 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             chip->reg_timer_b_load[0] = 0;
             chip->reg_timer_a_irq[0] = 0;
             chip->reg_timer_b_irq[0] = 0;
+            chip->reg_noise_en[0] = 0;
+            chip->reg_noise_freq[0] = 0;
+            chip->reg_kon_channel[0] = 0;
+            chip->reg_kon_operator[0] = 0;
+            chip->reg_lfo_freq[0] = 0;
+            chip->reg_lfo_amd[0] = 0;
+            chip->reg_lfo_pmd[0] = 0;
+            chip->reg_lfo_wave[0] = 0;
+            chip->reg_ct[0] = 0;
         }
         else
         {
@@ -260,6 +280,48 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
                 chip->reg_timer_a_irq[0] = chip->reg_timer_a_irq[1];
                 chip->reg_timer_b_irq[0] = chip->reg_timer_b_irq[1];
             }
+            if (write1_en && chip->reg_write_0f[1])
+            {
+                chip->reg_noise_en[0] = (chip->data1 >> 7) & 1;
+                chip->reg_noise_freq[0] = chip->data1 & 15;
+            }
+            else
+            {
+                chip->reg_noise_en[0] = chip->reg_noise_en[1];
+                chip->reg_noise_freq[0] = chip->reg_noise_freq[1];
+            }
+            if (write1_en && chip->reg_write_08[1])
+            {
+                chip->reg_kon_channel[0] = chip->data1 & 7;
+                chip->reg_kon_operator[0] = (chip->data1 >> 3) & 15;
+            }
+            else
+            {
+                chip->reg_kon_channel[0] = chip->reg_kon_channel[1];
+                chip->reg_kon_operator[0] = chip->reg_kon_operator[1];
+            }
+            if (chip->reg_lfo_freq_write)
+                chip->reg_lfo_freq[0] = chip->data1;
+            else
+                chip->reg_lfo_freq[0] = chip->reg_lfo_freq[1];
+            if (write1_en && chip->reg_write_1b[1])
+            {
+                chip->reg_lfo_wave[0] = chip->data1 & 3;
+                chip->reg_ct[0] = (chip->data1 >> 6) & 3;
+            }
+            else
+            {
+                chip->reg_lfo_wave[0] = chip->reg_lfo_wave[1];
+                chip->reg_ct[0] = chip->reg_ct[1];
+            }
+            if (write1_en && chip->reg_write_1b[1] && (chip->data1 & 128) == 0)
+                chip->reg_lfo_amd[0] = chip->data1 & 127;
+            else
+                chip->reg_lfo_amd[0] = chip->reg_lfo_amd[1];
+            if (write1_en && chip->reg_write_1b[1] && (chip->data1 & 128) != 0)
+                chip->reg_lfo_pmd[0] = chip->data1 & 127;
+            else
+                chip->reg_lfo_pmd[0] = chip->reg_lfo_pmd[1];
         }
     }
     if (clk2)
@@ -271,14 +333,26 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->reg_write_11[1] = chip->reg_write_11[0];
         chip->reg_write_12[1] = chip->reg_write_12[0];
         chip->reg_write_14[1] = chip->reg_write_14[0];
+        chip->reg_write_18[1] = chip->reg_write_18[0];
+        chip->reg_write_19[1] = chip->reg_write_19[0];
+        chip->reg_write_1b[1] = chip->reg_write_1b[0];
 
         chip->reg_test[1] = chip->reg_test[0];
+        chip->reg_noise_en[1] = chip->reg_noise_en[0];
+        chip->reg_noise_freq[1] = chip->reg_noise_freq[0];
+        chip->reg_kon_channel[1] = chip->reg_kon_channel[0];
+        chip->reg_kon_operator[1] = chip->reg_kon_operator[0];
         chip->reg_timer_a[1] = chip->reg_timer_a[0];
         chip->reg_timer_b[1] = chip->reg_timer_b[0];
         chip->reg_timer_a_load[1] = chip->reg_timer_a_load[0];
         chip->reg_timer_b_load[1] = chip->reg_timer_b_load[0];
         chip->reg_timer_a_irq[1] = chip->reg_timer_a_irq[0];
         chip->reg_timer_b_irq[1] = chip->reg_timer_b_irq[0];
+        chip->reg_lfo_freq[1] = chip->reg_lfo_freq[0];
+        chip->reg_lfo_wave[1] = chip->reg_lfo_wave[0];
+        chip->reg_lfo_pmd[1] = chip->reg_lfo_pmd[0];
+        chip->reg_lfo_amd[1] = chip->reg_lfo_amd[0];
+        chip->reg_ct[1] = chip->reg_ct[0];
     }
 
     if (clk1)
@@ -347,4 +421,302 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
     if (chip->fsm_cycle1 && chip->fsm_cycle1_l)
         chip->reg_timer_a_load_l = chip->reg_timer_a_load[0];
+
+
+    if (clk1)
+    {
+        int addr_write = (chip->data2 & 0xe0) != 0 && write0_en;
+        if (ic)
+            chip->reg_address[0] = 0;
+        else if (addr_write)
+            chip->reg_address[0] = chip->data2;
+        else
+            chip->reg_address[0] = chip->reg_address[1];
+        chip->reg_address_valid[0] = addr_write || (chip->reg_address_valid[1] && !write0_en);
+
+        int test = 0;
+        int reg_data = chip->reg_data[1];
+        if (chip->input.ym2164)
+        {
+            test = (chip->reg_test[0] & 16) != 0;
+            if (test)
+                reg_data = 0xff;
+        }
+        int data_write = chip->reg_address_valid[1] && write1_en;
+        if (ic)
+            chip->reg_data[0] = 0;
+        else if (data_write)
+            chip->reg_data[0] = chip->data2;
+        else
+            chip->reg_data[0] = reg_data;
+        chip->reg_data_valid[0] = data_write && (chip->reg_data_valid[1] && !write0_en);
+
+        int sync;
+        if (chip->input.ym2164)
+            sync = (chip->fsm_reg_sync[0] >> 25) & 1;
+        else
+            sync = chip->fsm_cycle31;
+        if (sync)
+            chip->reg_counter[0] = 0;
+        else
+            chip->reg_counter[0] = (chip->reg_counter[1] + 1) & 31;
+
+        if (chip->input.ym2164)
+        {
+            int cnt = chip->reg_div4[1] + 1;
+            int of = (cnt >> 2) & 1;
+            chip->reg_div4[0] = cnt & 3;
+
+            int sel = (ic && of) || chip->reg_ch_sync;
+            chip->reg_ch_sel[0] = (chip->reg_ch_sel[1] << 1) | sel;
+
+            sel = (ic && of) || sync;
+            chip->reg_op_sel[0] = (chip->reg_op_sel[1] << 1) | sel;
+
+            chip->reg_ch_bus = 0;
+            chip->reg_op_bus = 0;
+
+            uint64_t val = chip->reg_ch_latch;
+            if (test || chip->reg_match00)
+            {
+                val &= ~0xffull;
+                val |= reg_data;
+            }
+            if (test || (chip->reg_match20_l[1] & 8) != 0)
+            {
+                val &= ~0xff00ull;
+                val |= reg_data << 8;
+            }
+            if (test || chip->reg_match28_l[1])
+            {
+                val &= ~0xff0000ull;
+                val |= (reg_data & 0x7f) << 16;
+            }
+            if (test || chip->reg_match30_l[1])
+            {
+                val &= ~0xff000000ull;
+                val |= (reg_data & 0xfc) << 24;
+            }
+            if (test || chip->reg_match30)
+            {
+                val &= ~0xff00000000ull;
+                val |= (uint64_t)(reg_data & 0x73) << 32;
+            }
+            chip->reg_ch_in[0] = val;
+
+
+            val = chip->reg_op_latch;
+            if (test || chip->reg_match40)
+            {
+                val &= ~0xffull;
+                val |= reg_data & 0x7f;
+            }
+            if (test || chip->reg_match60)
+            {
+                val &= ~0xff00ull;
+                val |= reg_data << 8;
+            }
+            if (test || chip->reg_match80)
+            {
+                val &= ~0xff0000ull;
+                val |= (reg_data & 0xdf) << 16;
+            }
+            if (test || chip->reg_matcha0)
+            {
+                val &= ~0xff000000ull;
+                val |= (reg_data & 0x9f) << 24;
+            }
+            if (test || chip->reg_matchc0)
+            {
+                val &= ~0xff00000000ull;
+                val |= (uint64_t)(reg_data & 0xdf) << 32;
+            }
+            if (test || chip->reg_matche0)
+            {
+                val &= ~0xff0000000000ull;
+                val |= (uint64_t)reg_data << 40;
+            }
+
+            chip->reg_op_in[0] = val;
+
+            chip->reg_match20_l[0] = (chip->reg_match20_l[1] << 1) | chip->reg_match20;
+            chip->reg_match28_l[0] = chip->reg_match28;
+            chip->reg_match30_l[0] = chip->reg_match30;
+        }
+        else
+        {
+            memcpy(&chip->reg_con_fb_rl[0][1], &chip->reg_con_fb_rl[1][0], 7 * sizeof(uint8_t));
+            memcpy(&chip->reg_kc[0][1], &chip->reg_kc[1][0], 7 * sizeof(uint8_t));
+            memcpy(&chip->reg_kf[0][1], &chip->reg_kf[1][0], 7 * sizeof(uint8_t));
+            memcpy(&chip->reg_ams_pms[0][1], &chip->reg_ams_pms[1][0], 7 * sizeof(uint8_t));
+            memcpy(&chip->reg_mul_dt1[0][1], &chip->reg_mul_dt1[1][0], 31 * sizeof(uint8_t));
+            memcpy(&chip->reg_tl[0][1], &chip->reg_tl[1][0], 31 * sizeof(uint8_t));
+            memcpy(&chip->reg_ar_ks[0][1], &chip->reg_ar_ks[1][0], 31 * sizeof(uint8_t));
+            memcpy(&chip->reg_d1r_am[0][1], &chip->reg_d1r_am[1][0], 31 * sizeof(uint8_t));
+            memcpy(&chip->reg_d2r_dt2[0][1], &chip->reg_d2r_dt2[1][0], 31 * sizeof(uint8_t));
+            memcpy(&chip->reg_rr_d1l[0][1], &chip->reg_rr_d1l[10][0], 31 * sizeof(uint8_t));
+            if (ic)
+            {
+                chip->reg_con_fb_rl[0][0] = 0;
+                chip->reg_kc[0][0] = 0;
+                chip->reg_kf[0][0] = 0;
+                chip->reg_ams_pms[0][0] = 0;
+                chip->reg_mul_dt1[0][0] = 0;
+                chip->reg_tl[0][0] = 0;
+                chip->reg_ar_ks[0][0] = 0;
+                chip->reg_d1r_am[0][0] = 0;
+                chip->reg_d2r_dt2[0][0] = 0;
+                chip->reg_rr_d1l[0][0] = 0;
+            }
+            else
+            {
+                chip->reg_con_fb_rl[0][0] = chip->reg_match20 ? reg_data : chip->reg_con_fb_rl[1][7];
+                chip->reg_kc[0][0] = chip->reg_match28 ? (reg_data & 0x7f) : chip->reg_kc[1][7];
+                chip->reg_kf[0][0] = chip->reg_match30 ? (reg_data & 0xfc) : chip->reg_kf[1][7];
+                chip->reg_ams_pms[0][0] = chip->reg_match38 ? (reg_data & 0x73) : chip->reg_ams_pms[1][7];
+                chip->reg_mul_dt1[0][0] = chip->reg_match40 ? (reg_data & 0x7f) : chip->reg_mul_dt1[1][31];
+                chip->reg_tl[0][0] = chip->reg_match60 ? (reg_data & 0x7f) : chip->reg_tl[1][31];
+                chip->reg_ar_ks[0][0] = chip->reg_match80 ? (reg_data & 0xdf) : chip->reg_ar_ks[1][31];
+                chip->reg_d1r_am[0][0] = chip->reg_matcha0 ? (reg_data & 0x9f) : chip->reg_d1r_am[1][31];
+                chip->reg_d2r_dt2[0][0] = chip->reg_matchc0 ? (reg_data & 0xdf) : chip->reg_d2r_dt2[1][31];
+                chip->reg_rr_d1l[0][0] = chip->reg_matche0 ? reg_data : chip->reg_rr_d1l[1][31];
+            }
+        }
+    }
+    if (clk2)
+    {
+        chip->reg_address[1] = chip->reg_address[0];
+        chip->reg_address_valid[1] = chip->reg_address_valid[0];
+        chip->reg_data[1] = chip->reg_data[0];
+        chip->reg_data_valid[1] = chip->reg_data_valid[0];
+        chip->reg_counter[1] = chip->reg_counter[0];
+
+        int op_match = chip->reg_counter[0] == (chip->reg_address[0] & 31) && chip->reg_data_valid[0];
+        chip->reg_match40 = op_match && (chip->reg_address[0] & 0xe0) == 0x40;
+        chip->reg_match60 = op_match && (chip->reg_address[0] & 0xe0) == 0x60;
+        chip->reg_match80 = op_match && (chip->reg_address[0] & 0xe0) == 0x80;
+        chip->reg_matcha0 = op_match && (chip->reg_address[0] & 0xe0) == 0xa0;
+        chip->reg_matchc0 = op_match && (chip->reg_address[0] & 0xe0) == 0xc0;
+        chip->reg_matche0 = op_match && (chip->reg_address[0] & 0xe0) == 0xe0;
+        if (chip->input.ym2164)
+        {
+            int ch_match = (chip->reg_counter[0] & 7) == (chip->reg_address[0] & 7) && chip->reg_data_valid[0] && (chip->reg_address[0] & 0xc0) == 0x00;
+            chip->reg_match00 = ch_match && (chip->reg_address[0] & 0x38) == 0;
+            chip->reg_match20 = ch_match && (chip->reg_address[0] & 0x38) == 0x20;
+            chip->reg_match28 = ch_match && (chip->reg_address[0] & 0x38) == 0x28;
+            chip->reg_match30 = ch_match && (chip->reg_address[0] & 0x38) == 0x30;
+            chip->reg_match38 = ch_match && (chip->reg_address[0] & 0x38) == 0x38;
+
+            chip->reg_ch_sync = (chip->reg_counter[0] & 7) == 7;
+            chip->reg_ch_sel[1] = chip->reg_ch_sel[0];
+            chip->reg_op_sel[1] = chip->reg_op_sel[0];
+
+            chip->reg_div4[1] = chip->reg_div4[0];
+
+            chip->reg_ch_in[1] = chip->reg_ch_in[0];
+            chip->reg_op_in[1] = chip->reg_op_in[0];
+
+            chip->reg_match20_l[1] = chip->reg_match20_l[0];
+            chip->reg_match28_l[1] = chip->reg_match28_l[0];
+            chip->reg_match30_l[1] = chip->reg_match30_l[0];
+        }
+        else
+        {
+            int ch_match = (chip->reg_counter[0] & 7) == (chip->reg_address[0] & 7) && chip->reg_data_valid[0] && (chip->reg_address[0] & 0xe0) == 0x20;
+            chip->reg_match20 = ch_match && (chip->reg_address[0] & 0x18) == 0;
+            chip->reg_match28 = ch_match && (chip->reg_address[0] & 0x18) == 8;
+            chip->reg_match30 = ch_match && (chip->reg_address[0] & 0x18) == 0x10;
+            chip->reg_match38 = ch_match && (chip->reg_address[0] & 0x18) == 0x18;
+
+            memcpy(&chip->reg_con_fb_rl[1][0], &chip->reg_con_fb_rl[0][0], 8 * sizeof(uint8_t));
+            memcpy(&chip->reg_kc[1][0], &chip->reg_kc[0][0], 8 * sizeof(uint8_t));
+            memcpy(&chip->reg_kf[1][0], &chip->reg_kf[0][0], 8 * sizeof(uint8_t));
+            memcpy(&chip->reg_ams_pms[1][0], &chip->reg_ams_pms[0][0], 8 * sizeof(uint8_t));
+            memcpy(&chip->reg_mul_dt1[1][0], &chip->reg_mul_dt1[0][0], 32 * sizeof(uint8_t));
+            memcpy(&chip->reg_tl[1][0], &chip->reg_tl[0][0], 32 * sizeof(uint8_t));
+            memcpy(&chip->reg_ar_ks[1][0], &chip->reg_ar_ks[0][0], 32 * sizeof(uint8_t));
+            memcpy(&chip->reg_d1r_am[1][0], &chip->reg_d1r_am[0][0], 32 * sizeof(uint8_t));
+            memcpy(&chip->reg_d2r_dt2[1][0], &chip->reg_d2r_dt2[0][0], 32 * sizeof(uint8_t));
+            memcpy(&chip->reg_rr_d1l[1][0], &chip->reg_rr_d1l[0][0], 32 * sizeof(uint8_t));
+        }
+    }
+    if (chip->input.ym2164)
+    {
+        int i;
+        uint64_t sel_mask = chip->reg_ch_sel[1] & chip->reg_ch_sel[0];
+
+        for (i = 7; i >= 0; i--)
+        {
+            if (sel_mask & (2 << i))
+                chip->reg_ch_cell[i] = chip->reg_ch_in[1];
+            if (sel_mask & (1 << i))
+                chip->reg_ch_bus |= chip->reg_ch_cell[i];
+        }
+
+        sel_mask = chip->reg_op_sel[1] & chip->reg_op_sel[0];
+
+        for (i = 31; i >= 0; i--)
+        {
+            if (sel_mask & (2ull << i))
+                chip->reg_op_cell[i] = chip->reg_op_in[1];
+            if (sel_mask & (1ull << i))
+                chip->reg_op_bus |= chip->reg_op_cell[i];
+        }
+
+        if (clk1)
+        {
+            int ramp = chip->reg_ch_in[1] & 255;
+            int match = ramp == chip->reg_ramp_cnt[1][7];
+            int rst = ic || (chip->reg_ramp_sync && match);
+            if (rst)
+                chip->reg_ramp_cnt[0][0] = 0;
+            else
+                chip->reg_ramp_cnt[0][0] = chip->reg_ramp_cnt[1][7] + chip->reg_ramp_sync;
+            memcpy(chip->reg_ramp_cnt[0][1], chip->reg_ramp_cnt[1][0], 7 * sizeof(uint8_t));
+            chip->reg_ramp_step = match;
+
+            chip->reg_tl_latch[0] = chip->reg_op_in[1];
+            chip->reg_tl_latch[2] = chip->reg_tl_latch[1];
+            memcpy(chip->reg_tl_value[1][0], chip->reg_tl_value[01][0], 32 * sizeof(uint16_t));
+
+            chip->reg_tl_value_sum = chip->reg_tl_value_l + chip->reg_tl_add1;
+            if (chip->reg_tl_add2)
+                chip->reg_tl_value_sum += 1023;
+            chip->reg_tl_value_sum &= 1023;
+
+        }
+        if (clk2)
+        {
+            chip->reg_ch_latch = chip->reg_ch_bus;
+            chip->reg_op_latch = chip->reg_op_bus;
+            chip->reg_ramp_sync = (chip->reg_counter[0] & 24) == 0;
+            memcpy(chip->reg_ramp_cnt[1][0], chip->reg_ramp_cnt[0][0], 8 * sizeof(uint8_t));
+
+            chip->reg_tl_latch[1] = chip->reg_tl_latch[0];
+
+            memcpy(chip->reg_tl_value[0][1], chip->reg_tl_value[1][0], 31 * sizeof(uint16_t));
+
+            chip->reg_tl_value_l = chip->reg_tl_value[1][31];
+
+            if (chip->reg_ramp_step)
+            {
+                int add = chip->reg_tl_latch[0] + ((chip->reg_tl_value[1][31] >> 3) ^ 127);
+
+                chip->reg_tl_add1 = (add >> 7) & 1;
+                chip->reg_tl_add2 = !chip->reg_tl_add1 && (add & 127) != 127;
+            }
+            else
+            {
+                chip->reg_tl_add1 = 0;
+                chip->reg_tl_add2 = 0;
+            }
+
+            if (chip->reg_tl_latch[2] & 128)
+                chip->reg_tl_value[0][0] = chip->reg_tl_value_sum;
+            else
+                chip->reg_tl_value[0][0] = (chip->reg_tl_value[2] & 127) << 3;
+        }
+
+
+    }
 }

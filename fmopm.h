@@ -1,5 +1,5 @@
 #pragma once
-
+#include <stdint.h>
 
 typedef struct {
     int ym2164;
@@ -40,10 +40,12 @@ typedef struct {
     int fsm_op_cnt[2];
     int fsm_acc_sync;
     int fsm_sync1[2];
+    int fsm_cycle31;
     int fsm_cycle0;
     int fsm_cycle0_l;
     int fsm_cycle1;
     int fsm_cycle1_l;
+    int fsm_reg_sync[2];
 
     int reg_write_01[2];
     int reg_write_08[2];
@@ -51,6 +53,10 @@ typedef struct {
     int reg_write_10[2];
     int reg_write_11[2];
     int reg_write_12[2];
+    int reg_write_14[2];
+    int reg_write_18[2];
+    int reg_write_19[2];
+    int reg_write_1b[2];
     int reg_test[2];
     int reg_timer_a[2];
     int reg_timer_b[2];
@@ -60,6 +66,66 @@ typedef struct {
     int reg_timer_b_load_l;
     int reg_timer_a_irq[2];
     int reg_timer_b_irq[2];
+    int reg_noise_en[2];
+    int reg_noise_freq[2];
+    int reg_kon_channel[2];
+    int reg_kon_operator[2];
+    int reg_lfo_freq[2];
+    int reg_lfo_amd[2];
+    int reg_lfo_pmd[2];
+    int reg_lfo_freq_write;
+    int reg_lfo_wave[2];
+    int reg_ct[2];
+    int reg_address[2];
+    int reg_address_valid[2];
+    int reg_data[2];
+    int reg_data_valid[2];
+    int reg_counter[2];
+    int reg_match00;
+    int reg_match20;
+    int reg_match20_l[2];
+    int reg_match28;
+    int reg_match28_l[2];
+    int reg_match30;
+    int reg_match30_l[2];
+    int reg_match38;
+    int reg_match40;
+    int reg_match60;
+    int reg_match80;
+    int reg_matcha0;
+    int reg_matchc0;
+    int reg_matche0;
+    uint8_t reg_con_fb_rl[2][8];
+    uint8_t reg_kc[2][8];
+    uint8_t reg_kf[2][8];
+    uint8_t reg_ams_pms[2][8];
+    uint8_t reg_mul_dt1[2][32];
+    uint8_t reg_tl[2][32];
+    uint8_t reg_ar_ks[2][32];
+    uint8_t reg_d1r_am[2][32];
+    uint8_t reg_d2r_dt2[2][32];
+    uint8_t reg_rr_d1l[2][32];
+    int reg_div4[2];
+    int reg_ch_sel[2];
+    uint64_t reg_op_sel[2];
+    int reg_ch_sync;
+    uint64_t reg_ch_cell[8];
+    uint64_t reg_ch_bus;
+    uint64_t reg_ch_latch;
+    uint64_t reg_ch_in[2];
+    uint64_t reg_op_cell[8];
+    uint64_t reg_op_bus;
+    uint64_t reg_op_latch;
+    uint64_t reg_op_in[2];
+    int reg_ramp_sync;
+    int reg_ramp_step;
+    uint8_t reg_ramp_cnt[2][8];
+    int reg_tl_latch[3];
+    uint16_t reg_tl_value[2][31];
+    uint16_t reg_tl_value_l;
+    uint16_t reg_tl_value_sum;
+    int reg_tl_add1;
+    int reg_tl_add2;
 
     int timer_a_cnt[2];
     int timer_a_inc;
