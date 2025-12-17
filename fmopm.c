@@ -77,7 +77,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
     if (clk2)
         chip->ic = !ic0;
 
-    int ic = chip->ic;
+    int ic = !chip->ic;
 
 
     int wr0 = (!chip->input.wr && !chip->input.a0 && !chip->input.cs) || chip->ic;
@@ -248,18 +248,18 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         else
         {
             if (write1_en && chip->reg_write_01[1])
-                chip->reg_test[0] = data1;
+                chip->reg_test[0] = chip->data1;
             else
                 chip->reg_test[0] = chip->reg_test[1];
             chip->reg_timer_a[0] = chip->reg_timer_a[1];
             if (write1_en && chip->reg_write_10[1])
             {
-                chip->reg_timer_a[0] & ~= 0x3fc;
+                chip->reg_timer_a[0] &= ~0x3fc;
                 chip->reg_timer_a[0] |= chip->data1 << 2;
             }
             if (write1_en && chip->reg_write_11[1])
             {
-                chip->reg_timer_a[0] & ~= 0x3;
+                chip->reg_timer_a[0] &= ~0x3;
                 chip->reg_timer_a[0] |= chip->data1 & 3;
             }
             if (write1_en && chip->reg_write_12[1])
@@ -714,9 +714,132 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             if (chip->reg_tl_latch[2] & 128)
                 chip->reg_tl_value[0][0] = chip->reg_tl_value_sum;
             else
-                chip->reg_tl_value[0][0] = (chip->reg_tl_value[2] & 127) << 3;
+                chip->reg_tl_value[0][0] = (chip->reg_tl_latch[2] & 127) << 3;
         }
 
 
+    }
+
+    if (clk1)
+    {
+        if (chip->fsm_cycle31)
+            chip->reg_kon_cnt[0] = 0;
+        else
+            chip->reg_kon_cnt[0] = (chip->reg_kon_cnt[1] + 1) & 31;
+        chip->reg_kon[0][0] = chip->reg_kon[0][1] << 1;
+        chip->reg_kon[1][0] = chip->reg_kon[1][1] << 1;
+        chip->reg_kon[2][0] = chip->reg_kon[2][1] << 1;
+        chip->reg_kon[3][0] = chip->reg_kon[3][1] << 1;
+        if (chip->reg_kon_match)
+        {
+            chip->reg_kon[0][0] |= (chip->reg_kon_operator[1] >> 0) & 1;
+            chip->reg_kon[1][0] |= (chip->reg_kon_operator[1] >> 3) & 1;
+            chip->reg_kon[2][0] |= (chip->reg_kon_operator[1] >> 1) & 1;
+            chip->reg_kon[3][0] |= (chip->reg_kon_operator[1] >> 2) & 1;
+        }
+        else
+        {
+            if (!ic)
+                chip->reg_kon[0][0] |= (chip->reg_kon[3][1] >> 7) & 1;
+            chip->reg_kon[1][0] |= (chip->reg_kon[0][1] >> 7) & 1;
+            chip->reg_kon[2][0] |= (chip->reg_kon[1][1] >> 7) & 1;
+            chip->reg_kon[3][0] |= (chip->reg_kon[2][1] >> 7) & 1;
+        }
+    }
+    if (clk2)
+    {
+        chip->reg_kon_cnt[1] = chip->reg_kon_cnt[0];
+        chip->reg_kon_match = chip->reg_kon_cnt[0] == chip->reg_kon_channel[0];
+
+        chip->reg_kon[0][1] = chip->reg_kon[0][0];
+        chip->reg_kon[1][1] = chip->reg_kon[1][0];
+        chip->reg_kon[2][1] = chip->reg_kon[2][0];
+        chip->reg_kon[3][1] = chip->reg_kon[3][0];
+    }
+
+    if (clk1)
+    {
+        chip->lfo_sync[1] = chip->lfo_sync[0];
+    }
+    if (clk2)
+    {
+        chip->lfo_sync[0] = (chip->lfo_sync[1] << 1) | chip->fsm_out[11];
+    }
+
+    if (clk1)
+    {
+        int rst = ic || (chip->noise_cnt_inc && chip->noise_cnt_match[0]);
+        if (rst)
+            chip->noise_cnt[0] = 0;
+        else
+            chip->noise_cnt[0] = (chip->noise_cnt[1] + chip->noise_cnt_inc) & 31;
+        chip->noise_cnt_match[1] = chip->noise_cnt_match[0];
+
+        int noise_step = ic || chip->noise_cnt_match[2];
+
+        if (noise_step)
+            chip->noise_bit[0] = (chip->noise_lfsr[1] >> 15) & 1;
+        else
+            chip->noise_bit[0] = chip->noise_bit[1];
+
+        chip->noise_lfsr[0] = chip->noise_lfsr[1] << 1;
+        if (noise_step)
+        {
+            if (!ic)
+            {
+                int rst = (chip->noise_lfsr[1] & 0xffff) == 0 && !chip->noise_bit[1];
+                int xr = (chip->noise_lfsr[1] >> 13) & 1;
+                xr ^= chip->noise_bit[1];
+                chip->noise_lfsr[0] |= rst | xr;
+            }
+        }
+        else
+        {
+            chip->noise_lfsr[0] |= (chip->noise_lfsr[1] >> 15) & 1;
+        }
+    }
+    if (clk2)
+    {
+        chip->noise_cnt[1] = chip->noise_cnt[0];
+        chip->noise_cnt_inc = (chip->lfo_sync[1] >> 2) & 1;
+        chip->noise_cnt_match[0] = chip->noise_cnt[0] == (chip->reg_noise_freq[0] ^ 31);
+        chip->noise_cnt_match[2] = chip->noise_cnt_match[1];
+        chip->noise_bit[1] = chip->noise_bit[0];
+        chip->noise_lfsr[1] = chip->noise_lfsr[0];
+    }
+}
+
+fmopm_t opm;
+
+int main()
+{
+    int i;
+    opm.input.cs = 1;
+    opm.input.wr = 1;
+    opm.input.rd = 1;
+    opm.input.ic = 1;
+    opm.input.a0 = 0;
+    opm.input.data = 0;
+    for (i = 0; i < 64 * 4; i++)
+    {
+        FMOPM_Clock(&opm, 0);
+        FMOPM_Clock(&opm, 1);
+    }
+    opm.input.ic = 0;
+    for (i = 0; i < 64 * 4; i++)
+    {
+        FMOPM_Clock(&opm, 0);
+        FMOPM_Clock(&opm, 1);
+    }
+    opm.input.ic = 1;
+    for (i = 0; i < 64 * 4; i++)
+    {
+        FMOPM_Clock(&opm, 0);
+        FMOPM_Clock(&opm, 1);
+    }
+    for (i = 0; i < 64 * 100; i++)
+    {
+        FMOPM_Clock(&opm, 0);
+        FMOPM_Clock(&opm, 1);
     }
 }

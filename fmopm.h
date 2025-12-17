@@ -127,6 +127,10 @@ typedef struct {
     int reg_tl_add1;
     int reg_tl_add2;
 
+    int reg_kon_cnt[2];
+    int reg_kon_match;
+    int reg_kon[4][2];
+
     int timer_a_cnt[2];
     int timer_a_inc;
     int timer_a_of;
@@ -148,6 +152,14 @@ typedef struct {
 
     int busy_cnt[2];
     int busy_cnt_en[2];
+
+    int lfo_sync[2];
+
+    int noise_cnt[2];
+    int noise_cnt_inc;
+    int noise_cnt_match[3];
+    int noise_lfsr[2];
+    int noise_bit[2];
 
     int o_sy;
     int o_sh1;
