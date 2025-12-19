@@ -224,7 +224,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             chip->reg_write_1b[0] = chip->reg_write_1b[1];
         }
 
-        chip->reg_lfo_freq_write = write1_en && chip->reg_write_18;
+        chip->reg_lfo_freq_write = write1_en && chip->reg_write_18[1];
         
         if (ic)
         {
@@ -759,11 +759,159 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
     if (clk1)
     {
+        int lfrq_h = chip->reg_lfo_freq[1] >> 4;
+
+        int load_val = 0x8000 - (1 << (15 - lfrq_h));
+
+        int cnt = chip->lfo_cnt1[1] + chip->lfo_subcnt_of[3];
+        int of = cnt >> 8;
+        chip->lfo_cnt1_of_l = of;
+
+        chip->lfo_cnt1_load_val_hi = load_val >> 8;
+
+        if (chip->lfo_cnt1_load[2])
+            chip->lfo_cnt1[0] = (load_val & 255);
+        else
+            chip->lfo_cnt1[0] = ic ? 0 : (cnt & 255);
         chip->lfo_sync[1] = chip->lfo_sync[0];
+
+        chip->lfo_cnt1_h[1] = chip->lfo_cnt1_h[0];
+
+        chip->lfo_cnt1_load[1] = chip->lfo_cnt1_load[0];
+        chip->lfo_cnt1_load[3] = chip->lfo_cnt1_load[2];
+
+        int subcnt = chip->lfo_subcnt[1] + (chip->lfo_sync[0] & 1);
+        int sub_of = subcnt >> 4;
+        if (ic)
+            chip->lfo_subcnt[0] = 0;
+        else
+            chip->lfo_subcnt[0] = subcnt & 15;
+
+        chip->lfo_subcnt_of[0] = sub_of;
+        chip->lfo_subcnt_of[2] = chip->lfo_subcnt[1];
+
+        chip->lfo_cnt2_inc[0] = (chip->lfo_sync[0] & 2) != 0 && chip->lfo_cnt1_of_h;
+
+        int of2 = cnt >> 4;
+        if (ic)
+            chip->lfo_cnt2[0] = 0;
+        else
+            chip->lfo_cnt2[0] = (chip->lfo_cnt2[1] + chip->lfo_cnt2_inc[1]) & 15;
+
+        chip->lfo_cnt2_of[1] = chip->lfo_cnt2_of[0];
+
+        chip->lfo_test = (chip->reg_test[1] >> 2) & 1;
+
+        chip->lfo_inc[1] = chip->lfo_inc[0];
+
+        if (chip->lfo_bcnt_rst)
+            chip->lfo_bcnt[0] = 0;
+        else
+        {
+            int inc = (chip->lfo_sync[0] >> 2) & 1;
+            chip->lfo_bcnt[0] = (chip->lfo_bcnt[1] + inc) & 15;
+        }
+
+
+        int lfo_bit = 0;
+        int bcnt = chip->lfo_bcnt[1];
+        switch (bcnt)
+        {
+            case 0:
+                lfo_bit |= (chip->lfo_depth & 64) != 0 && x;
+                break;
+            case 1:
+                lfo_bit |= (chip->lfo_depth & 32) != 0 && x;
+                break;
+            case 2:
+                lfo_bit |= (chip->lfo_depth & 16) != 0 && x;
+                break;
+            case 3:
+                lfo_bit |= (chip->lfo_depth & 8) != 0 && x;
+                break;
+            case 4:
+                lfo_bit |= (chip->lfo_depth & 4) != 0 && x;
+                break;
+            case 5:
+                lfo_bit |= (chip->lfo_depth & 2) != 0 && x;
+                break;
+            case 6:
+                lfo_bit |= (chip->lfo_depth & 1) != 0 && x;
+                break;
+        }
+
+        int b0 = bcnt != 0 && (chip->lfo_out_shifter[1] & 0x8000) != 0;
+        int sum = lfo_bit + b0 + chip->lfo_sum_c_in;
+
+        chip->lfo_out_shifter[0] = chip->lfo_out_shifter[1] << 1;
+        chip->lfo_out_shifter[0] |= sum & 1;
+        chip->lfo_sum_c_out = sum >> 1;
+
+        chip->lfo_shifter[0] = chip->lfo_shifter[1] << 1;
+
+        
+        sum = x + y + z;
     }
     if (clk2)
     {
         chip->lfo_sync[0] = (chip->lfo_sync[1] << 1) | chip->fsm_out[11];
+        chip->lfo_cnt1[1] = chip->lfo_cnt1[0];
+
+        int cnt = chip->lfo_cnt1_h[1] + chip->lfo_cnt1_of_l;
+        int of = cnt >> 7;
+        chip->lfo_cnt1_of_h = of;
+        if (chip->lfo_cnt1_load[3])
+            chip->lfo_cnt1_h[0] = chip->lfo_cnt1_load_val_hi;
+        else
+            chip->lfo_cnt1_h[0] = ic ? 0 : (cnt & 127);
+
+        chip->lfo_subcnt[1] = chip->lfo_subcnt[0];
+        chip->lfo_subcnt_of[1] = chip->lfo_subcnt_of[0];
+        chip->lfo_subcnt_of[3] = chip->lfo_subcnt_of[2] || (chip->reg_test[0] & 8) != 0;
+
+        chip->lfo_cnt1_load[0] = chip->reg_lfo_freq_write || of;
+        chip->lfo_cnt1_load[2] = chip->lfo_cnt1_load[1];
+
+        chip->lfo_cnt2_inc[1] = chip->lfo_cnt2_inc[0];
+        chip->lfo_cnt2[1] = chip->lfo_cnt2[0];
+
+        chip->lfo_cnt2_of[0] = 0;
+        if (chip->lfo_cnt2_inc[0])
+        {
+            int lfrq_l = chip->reg_lfo_freq[0] & 15;
+            int cnt = chip->lfo_cnt2[0];
+            if (lfrq_l & 1)
+                chip->lfo_cnt2_of[0] |= (cnt & 15) == 7;
+            if (lfrq_l & 2)
+                chip->lfo_cnt2_of[0] |= (cnt & 7) == 3;
+            if (lfrq_l & 4)
+                chip->lfo_cnt2_of[0] |= (cnt & 3) == 1;
+            if (lfrq_l & 8)
+                chip->lfo_cnt2_of[0] |= (cnt & 1) == 0;
+        }
+
+        chip->lfo_inc[0] = chip->lfo_test || of || chip->lfo_cnt2_of[1];
+
+        if ((chip->lfo_sync[1] & 4) && (chip->lfo_sync[0] & 8))
+        {
+            chip->lfo_inc_lock = chip->lfo_inc[0];
+        }
+
+        chip->lfo_depth = (chip->lfo_bcnt[0] & 8) != 0 ? chip->reg_lfo_pmd[0] : chip->reg_lfo_amd[0];
+        chip->lfo_bcnt[1] = chip->lfo_bcnt[0];
+        chip->lfo_bcnt_rst = chip->fsm_out[11] && chip->lfo_subcnt[0] == 2;
+
+        chip->lfo_sum_c_in = chip->lfo_sum_c_out && (chip->lfo_sync[1] & 4) == 0;
+
+        chip->lfo_out_shifter[1] = chip->lfo_out_shifter[0];
+        chip->lfo_shifter[1] = chip->lfo_shifter[0];
+
+        chip->lfo_wave1 = chip->reg_lfo_wave[0] == 1;
+        chip->lfo_wave2 = chip->reg_lfo_wave[0] == 2;
+        chip->lfo_wave3 = chip->reg_lfo_wave[0] == 3;
+
+        int lfo_sel = (chip->lfo_bcnt[0] >> 3) & 1;
+        chip->lfo_sel = lfo_sel;
     }
 
     if (clk1)

@@ -154,6 +154,31 @@ typedef struct {
     int busy_cnt_en[2];
 
     int lfo_sync[2];
+    int lfo_cnt1[2];
+    int lfo_cnt1_h[2];
+    int lfo_cnt1_of_l;
+    int lfo_cnt1_of_h;
+    int lfo_cnt1_load_val_hi;
+    int lfo_cnt1_load[4];
+    int lfo_subcnt[2];
+    int lfo_subcnt_of[4];
+    int lfo_cnt2_inc[2];
+    int lfo_cnt2[2];
+    int lfo_cnt2_of[2];
+    int lfo_test;
+    int lfo_inc[2];
+    int lfo_inc_lock;
+    int lfo_depth;
+    int lfo_bcnt[2];
+    int lfo_bcnt_rst;
+    int lfo_sum_c_out;
+    int lfo_sum_c_in;
+    int lfo_out_shifter[2];
+    int lfo_shifter[2];
+    int lfo_wave1;
+    int lfo_wave2;
+    int lfo_wave3;
+    int lfo_sel;
 
     int noise_cnt[2];
     int noise_cnt_inc;
