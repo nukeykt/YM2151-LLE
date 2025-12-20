@@ -46,6 +46,7 @@ typedef struct {
     int fsm_cycle1;
     int fsm_cycle1_l;
     int fsm_reg_sync[2];
+    int fsm_lfo_mul[2];
 
     int reg_write_01[2];
     int reg_write_08[2];
@@ -154,6 +155,7 @@ typedef struct {
     int busy_cnt_en[2];
 
     int lfo_sync[2];
+    int lfo_sync2[2];
     int lfo_cnt1[2];
     int lfo_cnt1_h[2];
     int lfo_cnt1_of_l;
@@ -162,7 +164,7 @@ typedef struct {
     int lfo_cnt1_load[4];
     int lfo_subcnt[2];
     int lfo_subcnt_of[4];
-    int lfo_cnt2_inc[2];
+    int lfo_cnt2_inc;
     int lfo_cnt2[2];
     int lfo_cnt2_of[2];
     int lfo_test;
@@ -175,10 +177,18 @@ typedef struct {
     int lfo_sum_c_in;
     int lfo_out_shifter[2];
     int lfo_shifter[2];
-    int lfo_wave1;
-    int lfo_wave2;
-    int lfo_wave3;
+    int lfo_wave1; // square
+    int lfo_wave2; // triangle
+    int lfo_wave3; // noise
     int lfo_sel;
+    int lfo_sum2_c_out[2];
+    int lfo_sign_saw;
+    int lfo_sign_trig;
+    int lfo_cnt1_of_h_lock;
+    int lfo_cnt1_of_h_latch;
+    int lfo_premul[2];
+    int lfo_am[2];
+    int lfo_pm[2];
 
     int noise_cnt[2];
     int noise_cnt_inc;
