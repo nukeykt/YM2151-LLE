@@ -50,70 +50,22 @@ typedef struct {
 } freqtable_t;
 
 static const freqtable_t pg_freqtable[64] = {
-    { 1299, 1,  3 },
-    { 1318, 1,  3 },
-    { 1337, 1,  3 },
-    { 1356, 1,  4 },
-    { 1376, 1,  4 },
-    { 1396, 1,  4 },
-    { 1416, 1,  5 },
-    { 1437, 1,  4 },
-    { 1458, 1,  5 },
-    { 1479, 1,  5 },
-    { 1501, 1,  6 },
-    { 1523, 1,  6 },
-    { 0,    0,  0 },
-    { 0,    0,  0 },
-    { 0,    0,  0 },
-    { 0,    0,  0 },
-    { 1545, 1,  6 },
-    { 1567, 1,  6 },
-    { 1590, 1,  7 },
-    { 1613, 1,  7 },
-    { 1637, 1,  7 },
-    { 1660, 1,  8 },
-    { 1685, 1,  8 },
-    { 1709, 1,  8 },
-    { 1734, 1,  9 },
-    { 1759, 1,  9 },
-    { 1785, 1, 10 },
-    { 1811, 1, 10 },
-    { 0,    0,  0 },
-    { 0,    0,  0 },
-    { 0,    0,  0 },
-    { 0,    0,  0 },
-    { 1837, 1, 10 },
-    { 1864, 1, 11 },
-    { 1891, 1, 11 },
-    { 1918, 1, 12 },
-    { 1946, 1, 12 },
-    { 1975, 1, 12 },
-    { 2003, 1, 13 },
-    { 2032, 1, 14 },
-    { 2062, 1, 14 },
-    { 2092, 1, 14 },
-    { 2122, 1, 15 },
-    { 2153, 1, 15 },
-    { 0,    0,  0 },
-    { 0,    0,  0 },
-    { 0,    0,  0 },
-    { 0,    0,  0 },
-    { 2185, 1, 15 },
-    { 2216, 0, 15 },
-    { 2249, 0, 15 },
-    { 2281, 0, 15 },
-    { 2315, 0, 15 },
-    { 2348, 0, 15 },
-    { 2382, 0, 14 },
-    { 2417, 0, 14 },
-    { 2452, 0, 14 },
-    { 2488, 0, 14 },
-    { 2524, 0, 14 },
-    { 2561, 0, 14 },
-    { 0,    0,  0 },
-    { 0,    0,  0 },
-    { 0,    0,  0 },
-    { 0,    0,  0 }
+    { 1299, 1,  3 }, { 1318, 1,  3 }, { 1337, 1,  3 }, { 1356, 1,  4 },
+    { 1376, 1,  4 }, { 1396, 1,  4 }, { 1416, 1,  5 }, { 1437, 1,  4 },
+    { 1458, 1,  5 }, { 1479, 1,  5 }, { 1501, 1,  6 }, { 1523, 1,  6 },
+    { 0,    0,  0 }, { 0,    0,  0 }, { 0,    0,  0 }, { 0,    0,  0 },
+    { 1545, 1,  6 }, { 1567, 1,  6 }, { 1590, 1,  7 }, { 1613, 1,  7 },
+    { 1637, 1,  7 }, { 1660, 1,  8 }, { 1685, 1,  8 }, { 1709, 1,  8 },
+    { 1734, 1,  9 }, { 1759, 1,  9 }, { 1785, 1, 10 }, { 1811, 1, 10 },
+    { 0,    0,  0 }, { 0,    0,  0 }, { 0,    0,  0 }, { 0,    0,  0 },
+    { 1837, 1, 10 }, { 1864, 1, 11 }, { 1891, 1, 11 }, { 1918, 1, 12 },
+    { 1946, 1, 12 }, { 1975, 1, 12 }, { 2003, 1, 13 }, { 2032, 1, 14 },
+    { 2062, 1, 14 }, { 2092, 1, 14 }, { 2122, 1, 15 }, { 2153, 1, 15 },
+    { 0,    0,  0 }, { 0,    0,  0 }, { 0,    0,  0 }, { 0,    0,  0 },
+    { 2185, 1, 15 }, { 2216, 0, 15 }, { 2249, 0, 15 }, { 2281, 0, 15 },
+    { 2315, 0, 15 }, { 2348, 0, 15 }, { 2382, 0, 14 }, { 2417, 0, 14 },
+    { 2452, 0, 14 }, { 2488, 0, 14 }, { 2524, 0, 14 }, { 2561, 0, 14 },
+    { 0,    0,  0 }, { 0,    0,  0 }, { 0,    0,  0 }, { 0,    0,  0 }
 };
 
 
@@ -1169,6 +1121,9 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
         chip->freq_fnum[0] = chip->freq_basefreq[2] + (chip->freq_freq_lerp >> 1) + chip->freq_freq_frac[1];
         chip->freq_fnum[2] = chip->freq_fnum[1];
+
+        chip->freq_kcode[1] = chip->freq_kcode[0];
+        chip->freq_kcode[3] = chip->freq_kcode[2];
     }
     if (clk2)
     {
@@ -1247,7 +1202,8 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->freq_kc_dt_hi = sum_hi & 127;
         chip->freq_kc_dt_of[0] = sum_hi >> 7;
         chip->freq_kc_dt_of[2] = chip->freq_kc_dt_of[1];
-        chip->freq_block = chip->freq_kc_dt[4] >> 10;
+        chip->freq_kcode[0] = chip->freq_kc_dt[4] >> 8;
+        chip->freq_kcode[2] = chip->freq_kcode[1];
 
         chip->freq_freq_frac[0] = chip->freq_kc_dt[4] & 15;
         chip->freq_freq_frac[2] = chip->freq_freq_frac[1];
@@ -1263,6 +1219,110 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->freq_freq_lerp = (chip->freq_freq_lerp_d_e + chip->freq_freq_lerp_a + chip->freq_freq_lerp_b) & 63;
 
         chip->freq_fnum[1] = chip->freq_fnum[0];
+    }
+
+    if (clk1)
+    {
+        chip->pg_block[1] = chip->pg_block[0];
+
+        chip->pg_dt_multi = chip->reg_mul_dt1[1][31];
+
+        chip->dt_note[1] = chip->dt_note[0];
+        chip->dt_blockmax[1] = chip->dt_blockmax[0];
+
+        chip->dt_enable[1] = chip->dt_enable[0];
+
+        chip->dt_sign[1] = chip->dt_sign[0];
+
+        chip->dt_sum = chip->dt_add1 + chip->dt_add2 + 1;
+
+        chip->pg_freqdt[0] = (chip->pg_freq + chip->pg_dt_add) & 0x1ffff;
+        chip->pg_freqdt[2] = chip->pg_freqdt[1];
+
+        chip->pg_multi[1] = chip->pg_multi[0];
+        chip->pg_multi[3] = chip->pg_multi[2];
+        chip->pg_multi[5] = chip->pg_multi[4];
+
+        chip->pg_add[0] = chip->pg_multi[6] ? chip->pg_freqdt[3] * chip->pg_multi[6] :
+            (chip->pg_freqdt[3] >> 1);
+        chip->pg_add[2] = chip->pg_add[1];
+        chip->pg_add[4] = chip->pg_add[3];
+        chip->pg_add[6] = chip->pg_add[5];
+        chip->pg_add[8] = chip->pg_add[7];
+
+        chip->pg_reset[0] = chip->tm_w1;
+        chip->pg_reset[2] = chip->pg_reset[1];
+        chip->pg_reset[4] = chip->pg_reset[3] || (chip->reg_test[1] & 8) != 0;
+
+        memcpy(&chip->pg_phase[0][1], &chip->pg_phase[1][0], 30 * sizeof(int));
+
+        chip->pg_phase2[0] = chip->pg_phase[1][30];
+
+        chip->pg_phase[0][0] = (chip->pg_phase2[1] + chip->pg_add[9]) & 0xfffff;
+
+        chip->pg_dbg[0] = chip->pg_dbg[1] >> 1;
+        if (chip->pg_dbgsync)
+            chip->pg_dbg[0] |= chip->pg_phase[1][30] & 1023;
+
+        chip->pg_out = chip->pg_phase[1][23] >> 10;
+    }
+    if (clk2)
+    {
+        chip->pg_block[0] = chip->freq_kcode[3] >> 2;
+        chip->pg_freq = (chip->freq_fnum[2] << chip->pg_block[1]) >> 1;
+
+        chip->dt_note[0] = chip->freq_kcode[3] & 3;
+        chip->dt_blockmax[0] = (chip->freq_kcode[3] & 28) == 28;
+        chip->dt_add1 = (chip->freq_kcode[3] >> 2) & 7;
+        if ((chip->pg_dt_multi & 0x30) != 0)
+            chip->dt_add1 |= 8;
+        chip->dt_add2 = 0;
+        if ((chip->pg_dt_multi & 0x30) == 0x30)
+            chip->dt_add2 |= 1;
+        if (chip->pg_dt_multi & 0x20)
+            chip->dt_add2 |= 2;
+
+        chip->dt_enable[0] = (chip->pg_dt_multi & 0x30) != 0;
+
+        chip->dt_sign[0] = (chip->pg_dt_multi & 0x40) != 0;
+
+        int dt_l = (chip->dt_sum & 1) << 2;
+        if (!chip->dt_blockmax[1])
+            dt_l |= chip->dt_note[1];
+        int dt_h = chip->dt_sum >> 1;
+
+        static const int pg_detune[8] = { 16, 17, 19, 20, 22, 24, 27, 29 };
+
+        int dt_freq = pg_detune[dt_l] >> (9 - dt_h);
+
+        if (chip->dt_sign[1])
+            dt_freq = -dt_freq;
+
+        chip->pg_dt_add = dt_freq;
+
+        chip->pg_multi[0] = chip->pg_dt_multi & 15;
+        chip->pg_multi[2] = chip->pg_multi[1];
+        chip->pg_multi[4] = chip->pg_multi[3];
+        chip->pg_multi[6] = chip->pg_multi[5];
+
+        chip->pg_freqdt[1] = chip->pg_freqdt[0];
+        chip->pg_freqdt[3] = chip->pg_freqdt[2];
+
+        chip->pg_add[1] = chip->pg_add[0];
+        chip->pg_add[3] = chip->pg_add[2];
+        chip->pg_add[5] = chip->pg_reset[0] ? 0 : chip->pg_add[4];
+        chip->pg_add[7] = chip->pg_add[6];
+        chip->pg_add[9] = chip->pg_add[8];
+
+        chip->pg_reset[1] = chip->pg_reset[0];
+        chip->pg_reset[3] = chip->pg_reset[2];
+        memcpy(&chip->pg_phase[1][0], &chip->pg_phase[0][0], 31 * sizeof(int));
+
+        chip->pg_phase2[1] = chip->pg_reset[4] ? 0 : chip->pg_phase2[0];
+
+        chip->pg_dbgsync = chip->fsm_out[10];
+
+        chip->pg_dbg[1] = chip->pg_dbg[0];
     }
 }
 

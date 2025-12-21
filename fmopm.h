@@ -207,7 +207,7 @@ typedef struct {
     int freq_kc_dt[5];
     int freq_kc_dt_c[2];
     int freq_kc_dt_of[3];
-    int freq_block;
+    int freq_kcode[4];
     int freq_freq_frac[3];
     int freq_basefreq[3];
     int freq_slope;
@@ -218,6 +218,27 @@ typedef struct {
     int freq_freq_lerp;
     int freq_fnum[3];
 
+    int pg_block[2];
+    int pg_freq;
+    int pg_dt_multi;
+    int pg_dt_add;
+    int pg_freqdt[4];
+    int pg_multi[7];
+    int pg_add[10];
+    int pg_reset[5];
+    int pg_phase[2][31];
+    int pg_phase2[2];
+    int pg_out;
+    int pg_dbgsync;
+    int pg_dbg[2];
+    int dt_add1;
+    int dt_add2;
+    int dt_enable[2];
+    int dt_sum;
+    int dt_blockmax[2];
+    int dt_note[2];
+    int dt_sign[2];
+
     int noise_cnt[2];
     int noise_cnt_inc;
     int noise_cnt_match[3];
@@ -227,4 +248,6 @@ typedef struct {
     int o_sy;
     int o_sh1;
     int o_sh2;
+
+    int tm_w1;
 } fmopm_t;
