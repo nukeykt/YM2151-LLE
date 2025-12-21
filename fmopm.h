@@ -190,6 +190,34 @@ typedef struct {
     int lfo_am[2];
     int lfo_pm[2];
 
+    int freq_pms;
+    int freq_lfo_pm;
+    int freq_lfo_sign[5];
+    int freq_kc_lfo[5];
+    int freq_kc_lfo_l_of[2];
+    int freq_kc_lfo_of[4];
+    int freq_kc_lfo_of2[2];
+    int freq_kc_corr_sub[2];
+    int freq_kc_cliplow;
+    int freq_kc_cliphigh;
+    int freq_dt2[3];
+    int freq_kc_dt_lo;
+    int freq_kc_dt_hi;
+    int freq_kc_clipped_hi[2];
+    int freq_kc_dt[5];
+    int freq_kc_dt_c[2];
+    int freq_kc_dt_of[3];
+    int freq_block;
+    int freq_freq_frac[3];
+    int freq_basefreq[3];
+    int freq_slope;
+    int freq_slopetype;
+    int freq_freq_lerp_a;
+    int freq_freq_lerp_b;
+    int freq_freq_lerp_d_e;
+    int freq_freq_lerp;
+    int freq_fnum[3];
+
     int noise_cnt[2];
     int noise_cnt_inc;
     int noise_cnt_match[3];
@@ -199,9 +227,4 @@ typedef struct {
     int o_sy;
     int o_sh1;
     int o_sh2;
-
-    int tm_w1;
-    int tm_w2;
-    int tm_w3;
-    int tm_w4;
 } fmopm_t;

@@ -43,6 +43,80 @@ static const int fm_algorithm[4][6][8] = {
     }
 };
 
+typedef struct {
+    int basefreq;
+    int approxtype;
+    int slope;
+} freqtable_t;
+
+static const freqtable_t pg_freqtable[64] = {
+    { 1299, 1,  3 },
+    { 1318, 1,  3 },
+    { 1337, 1,  3 },
+    { 1356, 1,  4 },
+    { 1376, 1,  4 },
+    { 1396, 1,  4 },
+    { 1416, 1,  5 },
+    { 1437, 1,  4 },
+    { 1458, 1,  5 },
+    { 1479, 1,  5 },
+    { 1501, 1,  6 },
+    { 1523, 1,  6 },
+    { 0,    0,  0 },
+    { 0,    0,  0 },
+    { 0,    0,  0 },
+    { 0,    0,  0 },
+    { 1545, 1,  6 },
+    { 1567, 1,  6 },
+    { 1590, 1,  7 },
+    { 1613, 1,  7 },
+    { 1637, 1,  7 },
+    { 1660, 1,  8 },
+    { 1685, 1,  8 },
+    { 1709, 1,  8 },
+    { 1734, 1,  9 },
+    { 1759, 1,  9 },
+    { 1785, 1, 10 },
+    { 1811, 1, 10 },
+    { 0,    0,  0 },
+    { 0,    0,  0 },
+    { 0,    0,  0 },
+    { 0,    0,  0 },
+    { 1837, 1, 10 },
+    { 1864, 1, 11 },
+    { 1891, 1, 11 },
+    { 1918, 1, 12 },
+    { 1946, 1, 12 },
+    { 1975, 1, 12 },
+    { 2003, 1, 13 },
+    { 2032, 1, 14 },
+    { 2062, 1, 14 },
+    { 2092, 1, 14 },
+    { 2122, 1, 15 },
+    { 2153, 1, 15 },
+    { 0,    0,  0 },
+    { 0,    0,  0 },
+    { 0,    0,  0 },
+    { 0,    0,  0 },
+    { 2185, 1, 15 },
+    { 2216, 0, 15 },
+    { 2249, 0, 15 },
+    { 2281, 0, 15 },
+    { 2315, 0, 15 },
+    { 2348, 0, 15 },
+    { 2382, 0, 14 },
+    { 2417, 0, 14 },
+    { 2452, 0, 14 },
+    { 2488, 0, 14 },
+    { 2524, 0, 14 },
+    { 2561, 0, 14 },
+    { 0,    0,  0 },
+    { 0,    0,  0 },
+    { 0,    0,  0 },
+    { 0,    0,  0 }
+};
+
+
 void FMOPM_Clock(fmopm_t* chip, int clk)
 {
     int i;
@@ -650,9 +724,9 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
         for (i = 7; i >= 0; i--)
         {
-            if (sel_mask & (2 << i))
+            if (sel_mask & (2ull << i))
                 chip->reg_ch_cell[i] = chip->reg_ch_in[1];
-            if (sel_mask & (1 << i))
+            if (sel_mask & (1ull << i))
                 chip->reg_ch_bus |= chip->reg_ch_cell[i];
         }
 
@@ -678,9 +752,9 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             memcpy(chip->reg_ramp_cnt[0][1], chip->reg_ramp_cnt[1][0], 7 * sizeof(uint8_t));
             chip->reg_ramp_step = match;
 
-            chip->reg_tl_latch[0] = chip->reg_op_in[1];
+            chip->reg_tl_latch[0] = chip->reg_op_in[1] & 255;
             chip->reg_tl_latch[2] = chip->reg_tl_latch[1];
-            memcpy(chip->reg_tl_value[1][0], chip->reg_tl_value[01][0], 32 * sizeof(uint16_t));
+            memcpy(chip->reg_tl_value[1][0], chip->reg_tl_value[0][0], 32 * sizeof(uint16_t));
 
             chip->reg_tl_value_sum = chip->reg_tl_value_l + chip->reg_tl_add1;
             if (chip->reg_tl_add2)
@@ -961,9 +1035,6 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->lfo_pm[1] = chip->lfo_pm[0];
     }
 
-    int lfo_pm_out = chip->reg_lfo_pmd[0] == 0 ? 255 : chip->lfo_pm[0];
-    lfo_pm_out ^= 128;
-
     if (clk1)
     {
         int rst = ic || (chip->noise_cnt_inc && chip->noise_cnt_match[0]);
@@ -1004,6 +1075,194 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->noise_cnt_match[2] = chip->noise_cnt_match[1];
         chip->noise_bit[1] = chip->noise_bit[0];
         chip->noise_lfsr[1] = chip->noise_lfsr[0];
+    }
+
+    if (clk1)
+    {
+        int kfc = chip->reg_kf[1][1] | (chip->reg_kc[1][1] << 6);
+        chip->freq_lfo_sign[1] = chip->freq_lfo_sign[0];
+        chip->freq_lfo_sign[3] = chip->freq_lfo_sign[2];
+
+        int lfo_add = chip->freq_pms ? (chip->freq_lfo_pm << chip->freq_pms) >> 5 : 0;
+        int lfo_neg = chip->freq_lfo_sign[0];
+        if (lfo_neg)
+            lfo_add ^= 0x1fff;
+        int sum = (kfc & 255) + (lfo_add & 255) + lfo_neg;
+        int sum_l_of = sum >> 8;
+        sum += (kfc & 0x1f00) + (lfo_add & 0x1f00);
+        int sum_of = sum >> 13;
+        chip->freq_kc_lfo[0] = sum & 0x1fff;
+        chip->freq_kc_lfo_of[0] = sum_of;
+        chip->freq_kc_lfo_of[2] = chip->freq_kc_lfo_of[1];
+        chip->freq_kc_lfo_l_of[0] = sum_l_of;
+
+        int sum2 = chip->freq_kc_lfo[1];
+        if (!chip->freq_lfo_sign[2] && (chip->freq_kc_lfo_l_of[1] || (chip->freq_kc_lfo[1] & 0xc0) == 0xc0))
+            sum2 += 64;
+        int corr_sub = chip->freq_lfo_sign[2] && !chip->freq_kc_lfo_l_of[1];
+        if (corr_sub)
+            sum2 += 0x1fc0;
+        chip->freq_kc_corr_sub[0] = corr_sub;
+        chip->freq_kc_lfo[2] = sum2 & 0x1fff;
+        chip->freq_kc_lfo[4] = chip->freq_kc_lfo[3];
+        chip->freq_kc_lfo_of2[0] = sum2 >> 13;
+
+        chip->freq_dt2[0] = (chip->reg_d2r_dt2[1][26] >> 6) & 3;
+        chip->freq_dt2[2] = chip->freq_dt2[0];
+
+        chip->freq_kc_cliplow = (!chip->freq_kc_lfo_of[3] && chip->freq_lfo_sign[3]) || (!chip->freq_kc_lfo_of2[1] && chip->freq_kc_corr_sub[1]);
+        chip->freq_kc_cliphigh = !chip->freq_lfo_sign[3] && (chip->freq_kc_lfo_of[3] || chip->freq_kc_lfo_of2[1]);
+
+        chip->freq_kc_dt_c[1] = chip->freq_kc_dt_c[0];
+        chip->freq_kc_dt[0] = chip->freq_kc_dt_lo;
+        chip->freq_kc_dt[2] = chip->freq_kc_dt[1] | (chip->freq_kc_dt_hi << 6);
+        chip->freq_kc_dt[4] = chip->freq_kc_dt_of[2] ? 0x1fbf : chip->freq_kc_dt[3];
+
+        chip->freq_kc_clipped_hi[1] = chip->freq_kc_clipped_hi[0];
+
+        chip->freq_kc_dt_of[1] = chip->freq_kc_dt_of[0];
+        chip->freq_basefreq[1] = chip->freq_basefreq[0];
+
+        chip->freq_freq_frac[1] = chip->freq_freq_frac[0] & 1;
+
+        chip->freq_freq_lerp_a = (chip->freq_slope & 8) != 0 && (chip->freq_freq_frac[0] & 1) != 0;
+
+        int lerp_b = 0;
+        if (chip->freq_slopetype)
+        {
+            if ((chip->freq_slope & 4) != 0 && (chip->freq_freq_frac[0] & 2) != 0)
+                lerp_b |= 1;
+            if ((chip->freq_slope & 8) != 0 && (chip->freq_freq_frac[0] & 2) != 0)
+                lerp_b |= 2;
+            if ((chip->freq_freq_frac[0] & 2) != 0)
+                lerp_b |= 4;
+        }
+        else
+        {
+            if ((chip->freq_freq_frac[0] & 8) != 0)
+                lerp_b |= 1;
+            if ((chip->freq_freq_frac[0] & 1) != 0)
+                lerp_b |= 2;
+            if ((chip->freq_freq_frac[0] & 12) == 12 && (chip->freq_slope & 1) == 0)
+                lerp_b |= 4;
+            if ((chip->freq_freq_frac[0] & 2) != 0)
+                lerp_b |= 8;
+        }
+
+        chip->freq_freq_lerp_b = lerp_b;
+
+        int lerp_d = 0;
+        int lerp_e = 0;
+        if ((chip->freq_freq_frac[0] & 4) != 0)
+        {
+            lerp_e |= 8 | (chip->freq_slope >> 1);
+        }
+        if ((chip->freq_freq_frac[0] & 8) != 0)
+        {
+            lerp_d |= chip->freq_slope;
+            if (!chip->freq_slopetype)
+                lerp_d |= 1;
+            lerp_e |= 16;
+        }
+
+        chip->freq_freq_lerp_d_e = lerp_d + lerp_e;
+
+        chip->freq_fnum[0] = chip->freq_basefreq[2] + (chip->freq_freq_lerp >> 1) + chip->freq_freq_frac[1];
+        chip->freq_fnum[2] = chip->freq_fnum[1];
+    }
+    if (clk2)
+    {
+        int lfo_pm_out = chip->reg_lfo_pmd[0] == 0 ? 255 : chip->lfo_pm[0];
+        lfo_pm_out ^= 128;
+
+        int pms = (chip->reg_ams_pms[0][0] >> 4) & 7;
+        chip->freq_lfo_sign[0] = pms != 0 && (lfo_pm_out & 128) != 0;
+        chip->freq_lfo_sign[2] = chip->freq_lfo_sign[1];
+        chip->freq_lfo_sign[4] = chip->freq_lfo_sign[3];
+        chip->freq_pms = pms;
+        int lfo_add = ~lfo_pm_out & 15;
+
+        int ps7 = pms == 7;
+
+        int hi = ps7 ? (~lfo_pm_out >> 4) & 7 : (~lfo_pm_out >> 5) & 3;
+        int hi2 = (hi >> 2) & 1;
+        int add = (hi & 6) == 6 || (pms >= 6 && (hi & 3) == 3);
+
+        int pm_sum = hi + hi2 + add;
+        int lfo_add2 = ps7 ? pm_sum : ((pm_sum & 7) << 1) | ((~lfo_pm_out >> 4) & 1);
+        lfo_add |= lfo_add2 << 4;
+
+        chip->freq_lfo_pm = lfo_add;
+        chip->freq_kc_lfo_of[1] = chip->freq_kc_lfo_of[0];
+        chip->freq_kc_lfo_of[3] = chip->freq_kc_lfo_of[2];
+
+
+        chip->freq_kc_lfo[1] = chip->freq_kc_lfo[0];
+        chip->freq_kc_lfo[3] = chip->freq_kc_lfo[2];
+        chip->freq_kc_lfo_of2[1] = chip->freq_kc_lfo_of2[0];
+        chip->freq_kc_lfo_l_of[1] = chip->freq_kc_lfo_l_of[0];
+        chip->freq_kc_corr_sub[1] = chip->freq_kc_corr_sub[0];
+
+
+        int clipped = chip->freq_kc_lfo[4];
+        if (chip->freq_kc_cliplow)
+            clipped = 0;
+        if (chip->freq_kc_cliphigh)
+            clipped = 0x1fbf;
+
+        int dt_add = 0;
+        switch (chip->freq_dt2[0])
+        {
+        case 2:
+            dt_add = 52;
+            break;
+        case 3:
+            dt_add = 32;
+            break;
+        }
+
+        int sum_lo = (clipped & 63) + dt_add;
+        chip->freq_kc_dt_lo = sum_lo & 63;
+        chip->freq_kc_dt_c[0] = sum_lo >> 6;
+        chip->freq_kc_clipped_hi[0] = clipped >> 6;
+
+        chip->freq_kc_dt[1] = chip->freq_kc_dt[0];
+        chip->freq_kc_dt[3] = chip->freq_kc_dt[2];
+
+        int dt2 = chip->freq_dt2[2] == 2;
+        int c6 = chip->freq_kc_clipped_hi[1] & 1;
+        int c7 = (chip->freq_kc_clipped_hi[1] >> 1) & 1;
+        int w4 = (c7 && chip->freq_kc_dt_c[1]) || (chip->freq_kc_dt_c[1] && dt2 && c6);
+        int c_hi = chip->freq_kc_dt_c[1] ? !w4 : (c7 && dt2);
+        int dt_add_hi = 0;
+        if (dt2)
+            dt_add_hi |= 1;
+        if (w4)
+            dt_add_hi |= 2;
+        if (chip->freq_dt2[2] == 3)
+            dt_add_hi |= 4;
+        if (chip->freq_dt2[2] != 0)
+            dt_add_hi |= 8;
+        int sum_hi = chip->freq_kc_clipped_hi[1] + dt_add_hi + c_hi;
+        chip->freq_kc_dt_hi = sum_hi & 127;
+        chip->freq_kc_dt_of[0] = sum_hi >> 7;
+        chip->freq_kc_dt_of[2] = chip->freq_kc_dt_of[1];
+        chip->freq_block = chip->freq_kc_dt[4] >> 10;
+
+        chip->freq_freq_frac[0] = chip->freq_kc_dt[4] & 15;
+        chip->freq_freq_frac[2] = chip->freq_freq_frac[1];
+
+        const freqtable_t *ft = &pg_freqtable[(chip->freq_kc_dt[4] >> 4) & 63];
+
+        chip->freq_basefreq[0] = ft->basefreq;
+        chip->freq_basefreq[2] = chip->freq_basefreq[1];
+
+        chip->freq_slope = ft->slope;
+        chip->freq_slopetype = ft->approxtype;
+
+        chip->freq_freq_lerp = (chip->freq_freq_lerp_d_e + chip->freq_freq_lerp_a + chip->freq_freq_lerp_b) & 63;
+
+        chip->freq_fnum[1] = chip->freq_fnum[0];
     }
 }
 
