@@ -170,6 +170,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->fsm_out[14] = (chip->fsm_cnt[1] & 12) == 0;
         chip->fsm_out[15] = (chip->fsm_cnt[1] & 15) == 6;
         chip->fsm_out[16] = chip->fsm_cnt[1] == 29;
+        chip->fsm_out[17] = chip->fsm_cnt[1] >> 4;
         chip->fsm_lfo_mul[0] = chip->fsm_out[12] || chip->fsm_out[13] || chip->fsm_out[14];
 
         chip->fsm_sh1_l[0] = (chip->fsm_sh1_l[1] << 1) | chip->fsm_out[1];
@@ -1323,6 +1324,99 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->pg_dbgsync = chip->fsm_out[10];
 
         chip->pg_dbg[1] = chip->pg_dbg[0];
+    }
+
+    if (clk1)
+    {
+        chip->eg_sync[1] = chip->eg_sync[0];
+        chip->eg_sync2[1] = chip->eg_sync2[0];
+        chip->eg_ic[0] = ic;
+
+        if (chip->eg_subcnt_reset)
+            chip->eg_subcnt[0] = 0;
+        else
+        {
+            int subcnt = chip->eg_subcnt[1];
+            if (chip->eg_sync[0] & 2)
+                subcnt++;
+            chip->eg_subcnt[0] = subcnt;
+        }
+
+        chip->eg_rate_sel[1] = chip->eg_rate_sel[0];
+
+        int rate = 0;
+        switch (chip->eg_rate_sel[2])
+        {
+            case eg_state_attack:
+                rate = chip->reg_ar_ks[1][31] & 31;
+                break;
+            case eg_state_decay:
+                rate = chip->reg_d1r_am[1][31] & 31;
+                break;
+            case eg_state_sustain:
+                rate = chip->reg_d2r_dt2[1][31] & 31;
+                break;
+            case eg_state_release:
+                rate = (chip->reg_rr_d1l[1][31] & 15) * 2 + 1;
+                break;
+        }
+        if (ic)
+            rate = 31;
+        chip->eg_rate = rate;
+
+        int inc = (chip->eg_timer_carry[1] || (chip->eg_sync2[0] & 2) != 0) && !chip->eg_half && chip->eg_clock;
+        int timer_bit = (chip->eg_timer[1] & 1) + inc;
+
+        int timer_lock = (chip->eg_sync2[0] & 2) != 0 && chip->eg_clock && chip->eg_half;
+
+        chip->eg_timer_lo = chip->eg_timer[1] & 3;
+
+        chip->eg_timer_carry[0] = timer_bit >> 1;
+
+        int next_bit = (timer_bit & 1) != 0 && !ic;
+        chip->eg_timer[0] = (chip->eg_timer[1] >> 1) | (next_bit << 15);
+        int bit = (chip->eg_timer[1] & 32768) != 0;
+        int masked_bit = bit && chip->eg_masking[1];
+        chip->eg_timer_masked[0] = (chip->eg_timer_masked[1] >> 1) | (masked_bit << 15);
+
+        chip->eg_masking[0] = chip->eg_ic[1] || (chip->eg_sync2[0] & 2) != 0 || (chip->eg_masking[1] && !bit);
+
+        chip->eg_timerlock_l = timer_lock;
+        if (chip->eg_timerlock_l && timer_lock)
+        {
+            chip->eg_timer_lo_lock = chip->eg_timer_lo;
+            chip->eg_shift_lock = 0;
+            if (chip->eg_timer_masked[0] & 0x1555)
+                chip->eg_shift_lock |= 1;
+            if (chip->eg_timer_masked[0] & 0x2666)
+                chip->eg_shift_lock |= 2;
+            if (chip->eg_timer_masked[0] & 0x3878)
+                chip->eg_shift_lock |= 4;
+            if (chip->eg_timer_masked[0] & 0x3f80)
+                chip->eg_shift_lock |= 8;
+        }
+
+    }
+    if (clk2)
+    {
+        chip->eg_sync[0] = (chip->eg_sync[1] << 1) | chip->fsm_out[16];
+        chip->eg_sync2[0] = (chip->eg_sync2[1] << 1) | chip->fsm_out[7];
+        chip->eg_half = chip->fsm_out[17];
+        chip->eg_ic[1] = chip->eg_ic[0];
+
+        chip->eg_subcnt_reset = ic || ((chip->eg_subcnt[0] & 2) != 0 && (chip->eg_sync[1] & 1) != 0);
+        chip->eg_subcnt[1] = chip->eg_subcnt[0];
+
+        chip->eg_rate_sel[0] = chip->tm_w1;
+        chip->eg_rate_sel[2] = chip->eg_rate_sel[1];
+
+        chip->eg_timer_carry[1] = chip->eg_timer_carry[0];
+
+        chip->eg_timer[1] = chip->eg_timer[0];
+        chip->eg_timer_masked[1] = chip->eg_timer_masked[0];
+        chip->eg_masking[1] = chip->eg_masking[0];
+
+        chip->eg_clock = (chip->eg_subcnt[0] & 2) != 0 || (chip->reg_test[0] & 1) != 0;
     }
 }
 

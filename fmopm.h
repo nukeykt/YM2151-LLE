@@ -32,7 +32,7 @@ typedef struct {
     int data2;
 
     int fsm_cnt[2];
-    int fsm_out[17];
+    int fsm_out[18];
     int fsm_sh1_l[2];
     int fsm_sh2_l[2];
     int fsm_op_inc;
@@ -244,6 +244,24 @@ typedef struct {
     int noise_cnt_match[3];
     int noise_lfsr[2];
     int noise_bit[2];
+
+    int eg_ic[2];
+    int eg_timerlock_l;
+    int eg_rate_sel[3];
+    int eg_half;
+    int eg_rate;
+    int eg_timer_carry[2];
+    int eg_timer_lo;
+    int eg_timer_lo_lock;
+    int eg_shift_lock;
+    int eg_timer[2];
+    int eg_timer_masked[2];
+    int eg_masking[2];
+    int eg_clock;
+    int eg_sync[2];
+    int eg_sync2[2];
+    int eg_subcnt[2];
+    int eg_subcnt_reset;
 
     int o_sy;
     int o_sh1;
