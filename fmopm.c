@@ -203,9 +203,9 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
         chip->fsm_sync1[0] = (chip->fsm_sync1[1] << 1) | chip->fsm_out[5];
 
-        chip->fsm_cycle31 = (chip->fsm_sync1[0] >> 2) & 1;
-        chip->fsm_cycle0 = (chip->fsm_sync1[0] >> 3) & 1;
-        chip->fsm_cycle1 = (chip->fsm_sync1[0] >> 4) & 1;
+        chip->fsm_cycle31 = (chip->fsm_sync1[1] >> 1) & 1;
+        chip->fsm_cycle0 = (chip->fsm_sync1[1] >> 2) & 1;
+        chip->fsm_cycle1 = (chip->fsm_sync1[1] >> 3) & 1;
         chip->fsm_reg_sync[0] = (chip->fsm_reg_sync[1] << 1) | chip->fsm_out[10];
 
         chip->fsm_lfo_mul[1] = chip->fsm_lfo_mul[0];
@@ -265,6 +265,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             chip->reg_timer_b_load[0] = 0;
             chip->reg_timer_a_irq[0] = 0;
             chip->reg_timer_b_irq[0] = 0;
+            chip->reg_csm_en[0] = 0;
             chip->reg_noise_en[0] = 0;
             chip->reg_noise_freq[0] = 0;
             chip->reg_kon_channel[0] = 0;
@@ -302,6 +303,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
                 chip->reg_timer_b_load[0] = (chip->data1 >> 1) & 1;
                 chip->reg_timer_a_irq[0] = (chip->data1 >> 2) & 1;
                 chip->reg_timer_b_irq[0] = (chip->data1 >> 3) & 1;
+                chip->reg_csm_en[0] = (chip->data1 >> 7) & 1;
             }
             else
             {
@@ -309,6 +311,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
                 chip->reg_timer_b_load[0] = chip->reg_timer_b_load[1];
                 chip->reg_timer_a_irq[0] = chip->reg_timer_a_irq[1];
                 chip->reg_timer_b_irq[0] = chip->reg_timer_b_irq[1];
+                chip->reg_csm_en[0] = chip->reg_csm_en[1];
             }
             if (write1_en && chip->reg_write_0f[1])
             {
@@ -378,6 +381,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->reg_timer_b_load[1] = chip->reg_timer_b_load[0];
         chip->reg_timer_a_irq[1] = chip->reg_timer_a_irq[0];
         chip->reg_timer_b_irq[1] = chip->reg_timer_b_irq[0];
+        chip->reg_csm_en[1] = chip->reg_csm_en[0];
         chip->reg_lfo_freq[1] = chip->reg_lfo_freq[0];
         chip->reg_lfo_wave[1] = chip->reg_lfo_wave[0];
         chip->reg_lfo_pmd[1] = chip->reg_lfo_pmd[0];
@@ -1363,6 +1367,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         if (ic)
             rate = 31;
         chip->eg_rate = rate;
+        chip->eg_zerorate = rate == 0;
 
         int inc = (chip->eg_timer_carry[1] || (chip->eg_sync2[0] & 2) != 0) && !chip->eg_half && chip->eg_clock;
         int timer_bit = (chip->eg_timer[1] & 1) + inc;
@@ -1396,6 +1401,27 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
                 chip->eg_shift_lock |= 8;
         }
 
+        int kon_csm = (chip->reg_kon[3][1] & 32) != 0 || chip->eg_csm_kon[2];
+
+        chip->eg_csm_kon[1] = chip->eg_csm_kon[0];
+
+        chip->eg_keyon[0] = (chip->eg_keyon[1] << 1) | kon_csm;
+
+        chip->eg_kon1 = kon_csm && (chip->eg_keyon[1] & 0x80000000) == 0;
+        chip->eg_kon2[0] = (chip->eg_keyon[1] & 8) != 0 && (chip->eg_keyon[1] & 0x800000000ull) == 0;
+
+        chip->eg_state[1][0] = chip->eg_state[0][0];
+        chip->eg_state[1][1] = chip->eg_state[0][1];
+
+        chip->eg_off = x;
+        chip->eg_zero = x;
+        chip->eg_slreach = x;
+
+        chip->eg_maxrate[1] = chip->eg_maxrate[0];
+
+        chip->eg_ks = (chip->reg_ar_ks[1][31] >> 6) & 3;
+
+        chip->eg_rateks[1] = chip->eg_rateks[0];
     }
     if (clk2)
     {
@@ -1407,9 +1433,6 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->eg_subcnt_reset = ic || ((chip->eg_subcnt[0] & 2) != 0 && (chip->eg_sync[1] & 1) != 0);
         chip->eg_subcnt[1] = chip->eg_subcnt[0];
 
-        chip->eg_rate_sel[0] = chip->tm_w1;
-        chip->eg_rate_sel[2] = chip->eg_rate_sel[1];
-
         chip->eg_timer_carry[1] = chip->eg_timer_carry[0];
 
         chip->eg_timer[1] = chip->eg_timer[0];
@@ -1417,6 +1440,94 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->eg_masking[1] = chip->eg_masking[0];
 
         chip->eg_clock = (chip->eg_subcnt[0] & 2) != 0 || (chip->reg_test[0] & 1) != 0;
+
+        chip->eg_csm_kon[2] = chip->eg_csm_kon[1];
+
+        if ((chip->fsm_sync1[0] & 16) == 0 && (chip->fsm_sync1[1] & 16) != 0)
+        {
+            chip->eg_csm_kon[0] = chip->reg_csm_en[1] && chip->timer_a_load;
+        }
+
+        chip->eg_keyon[1] = chip->eg_keyon[0];
+
+        int s0 = chip->eg_state[1][0];
+        int s1 = chip->eg_state[1][1];
+        if (chip->eg_kon1)
+        {
+            s0 &= ~0x10000000;
+            s1 &= ~0x10000000;
+        }
+
+        chip->eg_rate_sel[0] = ((s0 >> 27) & 1) | ((s1 >> 26) & 2);
+        chip->eg_rate_sel[2] = chip->eg_rate_sel[1];
+
+        int state = 0;
+        if (chip->eg_state[1][0] & 0x80000000)
+            state |= 1;
+        if (chip->eg_state[1][1] & 0x80000000)
+            state |= 2;
+
+        int nextstate = 0;
+        if (state == eg_state_release && !chip->eg_kon2[0])
+            nextstate |= eg_state_release;
+        if (state == eg_state_sustain && !chip->eg_kon2[0])
+            nextstate |= eg_state_sustain;
+        if (state == eg_state_attack && !chip->eg_kon2[0] && chip->eg_zero)
+            nextstate |= eg_state_decay;
+        if (state == eg_state_decay && !chip->eg_kon2[0] && !chip->eg_slreach)
+            nextstate |= eg_state_decay;
+        if (state == eg_state_decay && !chip->eg_kon2[0] && chip->eg_slreach)
+            nextstate |= eg_state_sustain;
+        if (ic)
+            nextstate |= eg_state_release;
+        int kon = (chip->eg_keyon[0] >> 4) & 1;
+        if (!chip->eg_kon2[0] && !kon)
+            nextstate |= eg_state_release;
+        if (!chip->eg_kon2[0] && chip->eg_off && state != eg_state_attack)
+            nextstate |= eg_state_release;
+
+        chip->eg_linear = (state == eg_state_decay && !chip->eg_off && !chip->eg_kon2[0] && !chip->eg_slreach)
+            || (state >= eg_state_sustain && !chip->eg_off && !chip->eg_kon2[0]);
+        chip->eg_exponent = !chip->eg_zero && state == eg_state_attack && kon && !chip->eg_maxrate[1];
+
+        chip->eg_state[0][0] = chip->eg_state[1][0] << 1;
+        chip->eg_state[0][1] = chip->eg_state[1][1] << 1;
+        chip->eg_state[0][0] |= nextstate & 1;
+        chip->eg_state[0][1] |= (nextstate >> 1) & 1;
+
+        chip->eg_kon2[1] = chip->eg_kon2[0];
+
+        int rks = 0;
+        switch (chip->eg_ks)
+        {
+            case 0:
+                if (!chip->eg_zerorate)
+                    rks = chip->freq_kcode[3] >> 3;
+                break;
+            case 1:
+                rks = chip->freq_kcode[3] >> 2;
+                break;
+            case 2:
+                rks = chip->freq_kcode[3] >> 1;
+                break;
+            case 3:
+                rks = chip->freq_kcode[3];
+                break;
+        }
+
+        int rateks = chip->eg_rate * 2 + rks;
+        chip->eg_rateks[0] = rateks;
+
+        int rateks2 = chip->eg_rateks[1];
+        if (rateks2 & 64)
+            rateks2 = 63;
+
+        chip->eg_maxrate[0] = rateks2 == 63;
+
+        chip->eg_rate12 = (rateks2 >> 2) == 12;
+        chip->eg_rate13 = (rateks2 >> 2) == 13;
+        chip->eg_rate14 = (rateks2 >> 2) == 14;
+        chip->eg_rate15 = (rateks2 >> 2) == 15;
     }
 }
 

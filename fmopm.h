@@ -67,6 +67,7 @@ typedef struct {
     int reg_timer_b_load_l;
     int reg_timer_a_irq[2];
     int reg_timer_b_irq[2];
+    int reg_csm_en[2];
     int reg_noise_en[2];
     int reg_noise_freq[2];
     int reg_kon_channel[2];
@@ -250,6 +251,7 @@ typedef struct {
     int eg_rate_sel[3];
     int eg_half;
     int eg_rate;
+    int eg_zerorate;
     int eg_timer_carry[2];
     int eg_timer_lo;
     int eg_timer_lo_lock;
@@ -262,6 +264,23 @@ typedef struct {
     int eg_sync2[2];
     int eg_subcnt[2];
     int eg_subcnt_reset;
+    int eg_csm_kon[3];
+    uint64_t eg_keyon[2];
+    int eg_kon1;
+    int eg_kon2[2];
+    int eg_state[2][2];
+    int eg_off;
+    int eg_zero;
+    int eg_slreach;
+    int eg_linear;
+    int eg_exponent;
+    int eg_maxrate[2];
+    int eg_ks;
+    int eg_rateks[2];
+    int eg_rate12;
+    int eg_rate13;
+    int eg_rate14;
+    int eg_rate15;
 
     int o_sy;
     int o_sh1;
