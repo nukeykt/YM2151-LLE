@@ -1367,12 +1367,21 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         if (ic)
             rate = 31;
         chip->eg_rate = rate;
-        chip->eg_zerorate = rate == 0;
+        chip->eg_zerorate[0] = chip->eg_zerorate[1] << 1;
+        chip->eg_zerorate[0] |= rate == 0;
 
-        int inc = (chip->eg_timer_carry[1] || (chip->eg_sync2[0] & 2) != 0) && !chip->eg_half && chip->eg_clock;
+        int sl = (chip->reg_rr_d1l[1][31] >> 4) & 15;
+        if (sl == 15)
+            sl |= 16;
+        chip->eg_sl[0] = sl;
+        chip->eg_sl[2] = chip->eg_sl[1];
+
+        chip->eg_clock[1] = chip->eg_clock[0];
+        int egc = chip->eg_clock[0] & 1;
+        int inc = (chip->eg_timer_carry[1] || (chip->eg_sync2[0] & 2) != 0) && !chip->eg_half && egc;
         int timer_bit = (chip->eg_timer[1] & 1) + inc;
 
-        int timer_lock = (chip->eg_sync2[0] & 2) != 0 && chip->eg_clock && chip->eg_half;
+        int timer_lock = (chip->eg_sync2[0] & 2) != 0 && egc && chip->eg_half;
 
         chip->eg_timer_lo = chip->eg_timer[1] & 3;
 
@@ -1413,15 +1422,74 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->eg_state[1][0] = chip->eg_state[0][0];
         chip->eg_state[1][1] = chip->eg_state[0][1];
 
-        chip->eg_off = x;
-        chip->eg_zero = x;
-        chip->eg_slreach = x;
+        int level = chip->eg_level[1][29];
+        chip->eg_off = (level & 0x3f0) == 0x3f0;
+        chip->eg_zero = level == 0;
+        chip->eg_slreach = (level >> 4) == (chip->eg_sl[3] << 1);
 
         chip->eg_maxrate[1] = chip->eg_maxrate[0];
 
         chip->eg_ks = (chip->reg_ar_ks[1][31] >> 6) & 3;
 
         chip->eg_rateks[1] = chip->eg_rateks[0];
+        chip->eg_zerorate2[1] = chip->eg_zerorate2[0];
+
+        chip->eg_inc1_c1 = chip->eg_rate12 && !chip->eg_stephi;
+        chip->eg_inc2_c1 = chip->eg_rate12 && chip->eg_stephi;
+        chip->eg_inc2_c2 = chip->eg_rate13 && !chip->eg_stephi;
+        chip->eg_inc3_c1 = chip->eg_rate13 && chip->eg_stephi;
+        chip->eg_inc3_c2 = chip->eg_rate14 && !chip->eg_stephi;
+        chip->eg_inc4_c1 = chip->eg_rate14 && chip->eg_stephi;
+        chip->eg_inc4_c2 = chip->eg_rate15;
+
+        chip->eg_rate_lo[1] = chip->eg_rate_lo[0];
+
+        chip->eg_shift_sum[1] = chip->eg_shift_sum[0];
+
+        chip->eg_rateks_l[1] = chip->eg_rateks_l[0];
+
+
+        memcpy(chip->eg_level[0][1], chip->eg_level[1][0], 30 * sizeof(uint16_t));
+
+        int inc = 0;
+        if (chip->eg_linear)
+        {
+            if (chip->eg_inc1)
+                inc |= 1;
+            if (chip->eg_inc2)
+                inc |= 2;
+            if (chip->eg_inc3)
+                inc |= 4;
+            if (chip->eg_inc4)
+                inc |= 8;
+        }
+        if (chip->eg_exponent)
+        {
+            int lvl = chip->eg_level[1][30];
+            if (chip->eg_inc1)
+                inc |= ~lvl >> 4;
+            if (chip->eg_inc2)
+                inc |= ~lvl >> 3;
+            if (chip->eg_inc3)
+                inc |= ~lvl >> 2;
+            if (chip->eg_inc4)
+                inc |= ~lvl >> 1;
+        }
+
+        int nextlevel = chip->eg_level[1][30];
+        if (chip->eg_instantattack)
+            nextlevel = 0;
+
+        if (chip->eg_mute)
+            nextlevel |= 1;
+        if (ic || chip->eg_mute)
+            nextlevel |= 0x3fe;
+
+        chip->eg_nextlevel[0] = nextlevel;
+
+        chip->eg_inc = inc;
+
+        chip->eg_level[0][0] = chip->eg_nextlevel[1];
     }
     if (clk2)
     {
@@ -1429,6 +1497,9 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->eg_sync2[0] = (chip->eg_sync2[1] << 1) | chip->fsm_out[7];
         chip->eg_half = chip->fsm_out[17];
         chip->eg_ic[1] = chip->eg_ic[0];
+
+        chip->eg_sl[1] = chip->eg_sl[0];
+        chip->eg_sl[3] = chip->eg_sl[2];
 
         chip->eg_subcnt_reset = ic || ((chip->eg_subcnt[0] & 2) != 0 && (chip->eg_sync[1] & 1) != 0);
         chip->eg_subcnt[1] = chip->eg_subcnt[0];
@@ -1439,7 +1510,8 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->eg_timer_masked[1] = chip->eg_timer_masked[0];
         chip->eg_masking[1] = chip->eg_masking[0];
 
-        chip->eg_clock = (chip->eg_subcnt[0] & 2) != 0 || (chip->reg_test[0] & 1) != 0;
+        chip->eg_clock[0] = chip->eg_clock[1] << 1;
+        chip->eg_clock[0] |= (chip->eg_subcnt[0] & 2) != 0 || (chip->reg_test[0] & 1) != 0;
 
         chip->eg_csm_kon[2] = chip->eg_csm_kon[1];
 
@@ -1483,12 +1555,16 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         int kon = (chip->eg_keyon[0] >> 4) & 1;
         if (!chip->eg_kon2[0] && !kon)
             nextstate |= eg_state_release;
-        if (!chip->eg_kon2[0] && chip->eg_off && state != eg_state_attack)
+        int egmute = !chip->eg_kon2[0] && chip->eg_off && state != eg_state_attack;
+        if (egmute)
             nextstate |= eg_state_release;
+        chip->eg_mute = egmute;
 
         chip->eg_linear = (state == eg_state_decay && !chip->eg_off && !chip->eg_kon2[0] && !chip->eg_slreach)
             || (state >= eg_state_sustain && !chip->eg_off && !chip->eg_kon2[0]);
         chip->eg_exponent = !chip->eg_zero && state == eg_state_attack && kon && !chip->eg_maxrate[1];
+
+        chip->eg_instantattack = chip->eg_maxrate[0] && (!chip->eg_maxrate[0] || kon);
 
         chip->eg_state[0][0] = chip->eg_state[1][0] << 1;
         chip->eg_state[0][1] = chip->eg_state[1][1] << 1;
@@ -1497,11 +1573,13 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
         chip->eg_kon2[1] = chip->eg_kon2[0];
 
+        chip->eg_zerorate[1] = chip->eg_zerorate[0];
+
         int rks = 0;
         switch (chip->eg_ks)
         {
             case 0:
-                if (!chip->eg_zerorate)
+                if ((chip->eg_zerorate[0] & 1) != 0)
                     rks = chip->freq_kcode[3] >> 3;
                 break;
             case 1:
@@ -1522,12 +1600,47 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         if (rateks2 & 64)
             rateks2 = 63;
 
-        chip->eg_maxrate[0] = rateks2 == 63;
+        chip->eg_maxrate[0] = (rateks2 >> 1) == 31;
 
         chip->eg_rate12 = (rateks2 >> 2) == 12;
         chip->eg_rate13 = (rateks2 >> 2) == 13;
         chip->eg_rate14 = (rateks2 >> 2) == 14;
         chip->eg_rate15 = (rateks2 >> 2) == 15;
+
+        chip->eg_rate_lo[0] = (rateks2 & 48) != 48;
+
+        const static int stephi[4][4] = {
+            0,0,0,0,
+            1,0,0,0,
+            1,0,1,0,
+            1,1,1,0
+        };
+
+        chip->eg_stephi = stephi[rateks2 & 3][chip->eg_timer_lo_lock];
+
+        chip->eg_zerorate2[0] = rateks2 == 0;
+
+        int egc = (chip->eg_clock[1] & 2) != 0;
+
+        chip->eg_shift_sum[0] = (chip->eg_shift_lock + (rateks2 >> 2)) & 15;
+
+        chip->eg_rateks_l[0] = rateks2 & 3;
+
+        int inc12 = chip->eg_rate_lo[1] && chip->eg_shift_sum[1] == 13 && !chip->eg_zerorate2[1];
+        int inc13 = chip->eg_rate_lo[1] && chip->eg_shift_sum[1] == 13 && (chip->eg_rateks_l[1] & 2) != 0;
+        int inc14 = chip->eg_rate_lo[1] && chip->eg_shift_sum[1] == 14 && (chip->eg_rateks_l[1] & 1) != 0;
+
+        int inc1_c2 = (chip->eg_zerorate[0] & 4) == 0 && (inc14 || inc13 || inc12);
+
+        chip->eg_inc1 = egc && (chip->eg_inc1_c1 || inc1_c2);
+        chip->eg_inc2 = egc && (chip->eg_inc2_c1 || chip->eg_inc2_c2);
+        chip->eg_inc3 = egc && (chip->eg_inc3_c1 || chip->eg_inc3_c2);
+        chip->eg_inc4 = egc && (chip->eg_inc4_c1 || chip->eg_inc4_c2);
+
+
+        memcpy(chip->eg_level[1][0], chip->eg_level[0][0], 31 * sizeof(uint16_t));
+
+        chip->eg_nextlevel[1] = chip->eg_nextlevel[0] + chip->eg_inc;
     }
 }
 
