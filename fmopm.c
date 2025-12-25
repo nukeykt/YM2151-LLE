@@ -1255,7 +1255,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->pg_add[6] = chip->pg_add[5];
         chip->pg_add[8] = chip->pg_add[7];
 
-        chip->pg_reset[0] = chip->tm_w1;
+        chip->pg_reset[0] = (chip->eg_pgreset[0] >> 3) & 1;
         chip->pg_reset[2] = chip->pg_reset[1];
         chip->pg_reset[4] = chip->pg_reset[3] || (chip->reg_test[1] & 8) != 0;
 
@@ -1417,7 +1417,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->eg_keyon[0] = (chip->eg_keyon[1] << 1) | kon_csm;
 
         chip->eg_kon1 = kon_csm && (chip->eg_keyon[1] & 0x80000000) == 0;
-        chip->eg_kon2[0] = (chip->eg_keyon[1] & 8) != 0 && (chip->eg_keyon[1] & 0x800000000ull) == 0;
+        chip->eg_kon2 = (chip->eg_keyon[1] & 8) != 0 && (chip->eg_keyon[1] & 0x800000000ull) == 0;
 
         chip->eg_state[1][0] = chip->eg_state[0][0];
         chip->eg_state[1][1] = chip->eg_state[0][1];
@@ -1490,6 +1490,36 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->eg_inc = inc;
 
         chip->eg_level[0][0] = chip->eg_nextlevel[1];
+
+        int ams = 0;
+        if (chip->reg_d1r_am[1][31] & 0x80)
+            ams = chip->reg_ams_pms[1][7] & 3;
+
+        chip->eg_ams = ams;
+        chip->eg_lfo = chip->lfo_am[1];
+
+        int level_lfo = chip->lfo_am + chip->eg_level[1][28];
+        chip->eg_level_lfo[0] = level_lfo;
+        int level_lfo2 = chip->eg_level_lfo[1];
+        if (level_lfo2 & 0x400)
+            level_lfo2 = 0x3ff;
+        chip->eg_level_lfo[2] = level_lfo2;
+
+        chip->eg_tl[0] = chip->reg_tl[1][31] & 0x7f;
+        chip->eg_tl[2] = chip->eg_tl[1];
+        chip->eg_tl[4] = chip->eg_tl[3];
+
+        chip->eg_level_tl[1] = chip->eg_level_tl[0];
+
+        chip->eg_test[0] = (chip->reg_test[1] >> 5) & 1;
+        chip->eg_test[2] = chip->eg_test[1];
+
+        if (chip->eg_sync[0] & 32)
+            chip->eg_dbg[0] = chip->eg_out ^ 0x3ff;
+        else
+            chip->eg_dbg[0] = chip->eg_dbg[1] << 1;
+
+        chip->eg_pgreset[1] = chip->eg_pgreset[0];
     }
     if (clk2)
     {
@@ -1540,38 +1570,39 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             state |= 2;
 
         int nextstate = 0;
-        if (state == eg_state_release && !chip->eg_kon2[0])
+        int kon_event = chip->eg_kon2;
+        if (state == eg_state_release && !kon_event)
             nextstate |= eg_state_release;
-        if (state == eg_state_sustain && !chip->eg_kon2[0])
+        if (state == eg_state_sustain && !kon_event)
             nextstate |= eg_state_sustain;
-        if (state == eg_state_attack && !chip->eg_kon2[0] && chip->eg_zero)
+        if (state == eg_state_attack && !kon_event && chip->eg_zero)
             nextstate |= eg_state_decay;
-        if (state == eg_state_decay && !chip->eg_kon2[0] && !chip->eg_slreach)
+        if (state == eg_state_decay && !kon_event && !chip->eg_slreach)
             nextstate |= eg_state_decay;
-        if (state == eg_state_decay && !chip->eg_kon2[0] && chip->eg_slreach)
+        if (state == eg_state_decay && !kon_event && chip->eg_slreach)
             nextstate |= eg_state_sustain;
         if (ic)
             nextstate |= eg_state_release;
         int kon = (chip->eg_keyon[0] >> 4) & 1;
-        if (!chip->eg_kon2[0] && !kon)
+        if (!kon_event && !kon)
             nextstate |= eg_state_release;
-        int egmute = !chip->eg_kon2[0] && chip->eg_off && state != eg_state_attack;
+        int egmute = !kon_event && chip->eg_off && state != eg_state_attack;
         if (egmute)
             nextstate |= eg_state_release;
         chip->eg_mute = egmute;
 
-        chip->eg_linear = (state == eg_state_decay && !chip->eg_off && !chip->eg_kon2[0] && !chip->eg_slreach)
-            || (state >= eg_state_sustain && !chip->eg_off && !chip->eg_kon2[0]);
+        chip->eg_linear = (state == eg_state_decay && !chip->eg_off && !kon_event && !chip->eg_slreach)
+            || (state >= eg_state_sustain && !chip->eg_off && !kon_event);
         chip->eg_exponent = !chip->eg_zero && state == eg_state_attack && kon && !chip->eg_maxrate[1];
 
-        chip->eg_instantattack = chip->eg_maxrate[0] && (!chip->eg_maxrate[0] || kon);
+        chip->eg_instantattack = chip->eg_maxrate[0] && (!chip->eg_maxrate[0] || kon_event);
+
+        chip->eg_pgreset[0] = (chip->eg_pgreset[1] << 1) | kon_event;
 
         chip->eg_state[0][0] = chip->eg_state[1][0] << 1;
         chip->eg_state[0][1] = chip->eg_state[1][1] << 1;
         chip->eg_state[0][0] |= nextstate & 1;
         chip->eg_state[0][1] |= (nextstate >> 1) & 1;
-
-        chip->eg_kon2[1] = chip->eg_kon2[0];
 
         chip->eg_zerorate[1] = chip->eg_zerorate[0];
 
@@ -1641,6 +1672,246 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         memcpy(chip->eg_level[1][0], chip->eg_level[0][0], 31 * sizeof(uint16_t));
 
         chip->eg_nextlevel[1] = chip->eg_nextlevel[0] + chip->eg_inc;
+
+        int am = 0;
+        switch (chip->eg_ams)
+        {
+            case 1:
+                am = chip->eg_lfo;
+                break;
+            case 2:
+                am = chip->eg_lfo << 1;
+                break;
+            case 3:
+                am = chip->eg_lfo << 2;
+                break;
+        }
+
+        chip->eg_lfo_am = am;
+
+        chip->eg_level_lfo[1] = chip->eg_level_lfo[0];
+
+        chip->eg_tl[1] = chip->eg_tl[0];
+        chip->eg_tl[3] = chip->eg_tl[1];
+
+        chip->eg_level_tl[0] = chip->eg_level_lfo[2] + (chip->eg_tl[4] << 3);
+
+        int level_tl = chip->eg_level_tl[1];
+        if (level_tl & 0x400)
+            level_tl = 0x3ff;
+        
+        chip->eg_test[1] = chip->eg_test[0];
+        if (chip->eg_test[2])
+            level_tl = 0;
+
+        chip->eg_out = level_tl;
+
+        chip->eg_dbg[1] = chip->eg_dbg[0];
+    }
+
+    if (clk1)
+    {
+        chip->op_phase2[0] = (chip->op_phase + chip->op_mod_in[1]) & 1023;
+
+        if (chip->op_phase2[1] & 0x200)
+            chip->op_phase_index[0] = ~chip->op_phase2[1] & 0xff;
+        else
+            chip->op_phase_index[0] = chip->op_phase2[1] & 0xff;
+
+        chip->op_sign[0] = chip->op_sign[1] << 1;
+        chip->op_sign[0] |= (chip->op_phase2[1] >> 9) & 1;
+        chip->op_logsin_base[1] = chip->op_logsin_base[0];
+        chip->op_logsin_delta[1] = chip->op_phase_index[1] ? 0 : chip->op_logsin_delta[0];
+
+        chip->op_logsin[1] = chip->op_logsin[0];
+
+        chip->op_env = chip->eg_out;
+
+        chip->op_atten[1] = chip->op_atten[0];
+        chip->op_atten[3] = chip->op_atten[2] & 1;
+
+        static const int pow[128] = {
+            0x3f5, 0x3ea, 0x3df, 0x3d4, 0x3c9, 0x3bf, 0x3b4, 0x3a9, 0x39f, 0x394, 0x38a, 0x37f, 0x375, 0x36a, 0x360, 0x356,
+            0x34c, 0x342, 0x338, 0x32e, 0x324, 0x31a, 0x310, 0x306, 0x2fd, 0x2f3, 0x2e9, 0x2e0, 0x2d6, 0x2cd, 0x2c4, 0x2ba,
+            0x2b1, 0x2a8, 0x29e, 0x295, 0x28c, 0x283, 0x27a, 0x271, 0x268, 0x25f, 0x257, 0x24e, 0x245, 0x23c, 0x234, 0x22b,
+            0x223, 0x21a, 0x212, 0x209, 0x201, 0x1f9, 0x1f0, 0x1e8, 0x1e0, 0x1d8, 0x1d0, 0x1c8, 0x1c0, 0x1b8, 0x1b0, 0x1a8,
+            0x1a0, 0x199, 0x191, 0x189, 0x181, 0x17a, 0x172, 0x16b, 0x163, 0x15c, 0x154, 0x14d, 0x146, 0x13e, 0x137, 0x130,
+            0x129, 0x122, 0x11b, 0x114, 0x10c, 0x106, 0x0ff, 0x0f8, 0x0f1, 0x0ea, 0x0e3, 0x0dc, 0x0d6, 0x0cf, 0x0c8, 0x0c2,
+            0x0bb, 0x0b5, 0x0ae, 0x0a8, 0x0a1, 0x09b, 0x094, 0x08e, 0x088, 0x082, 0x07b, 0x075, 0x06f, 0x069, 0x063, 0x05d,
+            0x057, 0x051, 0x04b, 0x045, 0x03f, 0x039, 0x033, 0x02d, 0x028, 0x022, 0x01c, 0x016, 0x011, 0x00b, 0x006, 0x000,
+        };
+        static const int pow_d[128] = {
+            0x005, 0x005, 0x005, 0x006, 0x006, 0x005, 0x005, 0x005, 0x005, 0x005, 0x005, 0x005, 0x005, 0x006, 0x005, 0x005,
+            0x005, 0x005, 0x005, 0x005, 0x005, 0x005, 0x005, 0x005, 0x005, 0x005, 0x005, 0x005, 0x005, 0x005, 0x004, 0x005,
+            0x004, 0x004, 0x005, 0x005, 0x005, 0x005, 0x005, 0x005, 0x005, 0x005, 0x004, 0x004, 0x004, 0x005, 0x004, 0x005,
+            0x004, 0x004, 0x004, 0x005, 0x004, 0x004, 0x005, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004,
+            0x004, 0x003, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x003, 0x004, 0x004, 0x004,
+            0x003, 0x003, 0x003, 0x003, 0x004, 0x003, 0x003, 0x003, 0x003, 0x003, 0x004, 0x004, 0x003, 0x003, 0x004, 0x003,
+            0x003, 0x003, 0x003, 0x003, 0x003, 0x003, 0x004, 0x003, 0x003, 0x003, 0x003, 0x003, 0x003, 0x003, 0x003, 0x003,
+            0x003, 0x003, 0x003, 0x003, 0x003, 0x003, 0x003, 0x003, 0x002, 0x003, 0x003, 0x003, 0x003, 0x003, 0x002, 0x003,
+        };
+        chip->op_pow_base[0] = pow[(chip->op_atten[2] >> 1) & 127];
+        chip->op_pow_delta[0] = pow_d[(chip->op_atten[2] >> 1) & 127];
+
+        chip->op_pow[0] = chip->op_pow_base[1] + chip->op_pow_delta[1];
+
+        chip->op_shift[0] = chip->op_atten[0] >> 8;
+        chip->op_shift[2] = chip->op_shift[1];
+
+        chip->op_pow_shift[0] = ((chip->op_pow[1] | 0x400) << 2) >> chip->op_shift[3];
+        if (chip->reg_test[1] & 16)
+            chip->op_pow_shift[0] |= 0x2000;
+
+        int ps = chip->op_pow_shift[1];
+        if (chip->op_sign[1] & 128)
+            ps = (ps + 1) & 0x3fff;
+        chip->op_value[0][0] = ps;
+        if (chip->op_update_op1[1])
+        {
+            chip->op_op1[0][0] = chip->op_value[1][4];
+            chip->op_op1_old[0][0] = chip->op_op1[1][7];
+        }
+        else
+        {
+            chip->op_op1[0][0] = chip->op_op1[1][7];
+            chip->op_op1_old[0][0] = chip->op_op1_old[1][7];
+        }
+        if (chip->op_update_op2[1] & 1)
+            chip->op_op2[0][0] = chip->op_value[1][4];
+        else
+            chip->op_op2[0][0] = chip->op_op2[1][7];
+        memcpy(chip->op_value[0][1], chip->op_value[1][0], 4 * sizeof(uint16_t));
+        memcpy(chip->op_op1[0][1], chip->op_op1[1][0], 7 * sizeof(uint16_t));
+        memcpy(chip->op_op1_old[0][1], chip->op_op1_old[1][0], 7 * sizeof(uint16_t));
+        memcpy(chip->op_op2[0][1], chip->op_op2[1][0], 7 * sizeof(uint16_t));
+
+        int mod1 = 0;
+
+        if (chip->op_m1_op1[1])
+            mod1 |= chip->op_op1_old[1][7];
+        if (chip->op_m1_op2[1])
+            mod1 |= chip->op_op2[1][7];
+        if (chip->op_m1_prev[1])
+            mod1 |= chip->op_value[1][4];
+        chip->op_mod1 = mod1;
+
+        int mod2 = 0;
+        if (chip->op_m2_prev[1])
+            mod2 |= chip->op_value[1][4];
+        if (chip->op_m2_op1[1])
+            mod2 |= chip->op_op1[1][4];
+        chip->op_mod2 = mod1;
+
+        chip->op_modsum[1] = chip->op_modsum[0];
+
+        if (chip->op_update_op2[1] & 4)
+        {
+            int fb = (chip->reg_con_fb_rl[1][7] >> 3) & 7;
+            if (!fb)
+                chip->op_mod_in[0] = 0;
+            else
+            {
+                int16_t fbmod = chip->op_modsum[2] << 2;
+
+                chip->op_mod_in[0] = fbmod >> (9 - fb);
+            }
+        }
+        else
+            chip->op_mod_in[0] = chip->op_modsum[2] & 0x3ff;
+
+
+
+        int con = chip->reg_con_fb_rl[1][4] & 3;
+
+        int op = chip->fsm_op_cnt[1];
+        chip->op_mix = fm_algorithm[op][5][con];
+
+        chip->op_update_op1[0] = op == 0;
+        chip->op_update_op2[0] = (chip->op_update_op2[1] << 1) | (op == 1);
+
+        int op_ = (op + 2) & 3;
+        chip->op_m2_op1[0] = fm_algorithm[op_][0][con];
+        chip->op_m1_op1[0] = fm_algorithm[op_][1][con];
+        chip->op_m1_op2[0] = fm_algorithm[op_][2][con];
+        chip->op_m2_prev[0] = fm_algorithm[op_][3][con];
+        chip->op_m1_prev[0] = fm_algorithm[op_][4][con];
+    }
+    if (clk2)
+    {
+        chip->op_phase = chip->pg_out;
+        chip->op_mod_in[1] = chip->op_mod_in[0];
+
+        chip->op_phase2[1] = chip->op_phase2[0];
+
+        static const int logsin[128] = {
+            0x6c3, 0x58b, 0x4e4, 0x471, 0x41a, 0x3d3, 0x398, 0x365, 0x339, 0x311, 0x2ed, 0x2cd, 0x2af, 0x293, 0x279, 0x261,
+            0x24b, 0x236, 0x222, 0x20f, 0x1fd, 0x1ec, 0x1dc, 0x1cd, 0x1be, 0x1b0, 0x1a2, 0x195, 0x188, 0x17c, 0x171, 0x166,
+            0x15b, 0x150, 0x146, 0x13c, 0x133, 0x129, 0x121, 0x118, 0x10f, 0x107, 0x0ff, 0x0f8, 0x0f0, 0x0e9, 0x0e2, 0x0db,
+            0x0d4, 0x0cd, 0x0c7, 0x0c1, 0x0bb, 0x0b5, 0x0af, 0x0a9, 0x0a4, 0x09f, 0x099, 0x094, 0x08f, 0x08a, 0x086, 0x081,
+            0x07d, 0x078, 0x074, 0x070, 0x06c, 0x068, 0x064, 0x060, 0x05c, 0x059, 0x055, 0x052, 0x04e, 0x04b, 0x048, 0x045,
+            0x042, 0x03f, 0x03c, 0x039, 0x037, 0x034, 0x031, 0x02f, 0x02d, 0x02a, 0x028, 0x026, 0x024, 0x022, 0x020, 0x01e,
+            0x01c, 0x01a, 0x018, 0x017, 0x015, 0x014, 0x012, 0x011, 0x00f, 0x00e, 0x00d, 0x00c, 0x00a, 0x009, 0x008, 0x007,
+            0x007, 0x006, 0x005, 0x004, 0x004, 0x003, 0x002, 0x002, 0x001, 0x001, 0x001, 0x001, 0x000, 0x000, 0x000, 0x000
+        };
+        static const int logsin_d[128] = {
+            0x196, 0x07c, 0x04a, 0x035, 0x029, 0x022, 0x01d, 0x019, 0x015, 0x013, 0x012, 0x00f, 0x00e, 0x00d, 0x00d, 0x00c,
+            0x00b, 0x00a, 0x00a, 0x009, 0x009, 0x009, 0x008, 0x007, 0x007, 0x007, 0x007, 0x006, 0x007, 0x006, 0x006, 0x005,
+            0x005, 0x005, 0x005, 0x005, 0x004, 0x005, 0x004, 0x004, 0x005, 0x004, 0x004, 0x003, 0x004, 0x003, 0x003, 0x003,
+            0x003, 0x004, 0x003, 0x003, 0x003, 0x003, 0x003, 0x003, 0x003, 0x002, 0x003, 0x003, 0x003, 0x003, 0x002, 0x002,
+            0x002, 0x002, 0x002, 0x002, 0x002, 0x002, 0x002, 0x002, 0x002, 0x002, 0x002, 0x001, 0x002, 0x002, 0x002, 0x001,
+            0x001, 0x001, 0x002, 0x002, 0x001, 0x001, 0x002, 0x001, 0x001, 0x001, 0x001, 0x001, 0x001, 0x001, 0x001, 0x001,
+            0x001, 0x001, 0x001, 0x000, 0x001, 0x000, 0x001, 0x000, 0x001, 0x001, 0x000, 0x000, 0x001, 0x001, 0x001, 0x001,
+            0x000, 0x000, 0x000, 0x001, 0x000, 0x000, 0x001, 0x000, 0x001, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000
+        };
+        chip->op_logsin_base[0] = logsin[(chip->op_phase_index[0] >> 1) & 127];
+        chip->op_logsin_delta[0] = logsin_d[(chip->op_phase_index[0] >> 1) & 127];
+
+
+        chip->op_phase_index[1] = chip->op_phase_index[0] & 1;
+
+        chip->op_sign[1] = chip->op_sign[0];
+
+        chip->op_logsin[0] = chip->op_logsin_base[1] + chip->op_logsin_delta[1];
+
+        chip->op_atten[0] = chip->op_logsin[1] + (chip->op_env << 2);
+        if (chip->op_atten[1] & 4096)
+            chip->op_atten[2] = 4095;
+        else
+            chip->op_atten[2] = chip->op_atten[1];
+
+        chip->op_pow_base[1] = chip->op_pow_base[0];
+        chip->op_pow_delta[1] = chip->op_atten[3] ? 0 : chip->op_pow_delta[0];
+
+        chip->op_pow[1] = chip->op_pow[0];
+        chip->op_shift[1] = chip->op_shift[0];
+        chip->op_shift[3] = chip->op_shift[2];
+
+        if (chip->op_sign[0] & 128)
+            chip->op_pow_shift[1] = chip->op_pow_shift[0] ^ 0x3fff;
+        else
+            chip->op_pow_shift[1] = chip->op_pow_shift[0];
+        memcpy(chip->op_value[1][0], chip->op_value[0][0], 5 * sizeof(uint16_t));
+        memcpy(chip->op_op1[1][0], chip->op_op1[0][0], 8 * sizeof(uint16_t));
+        memcpy(chip->op_op1_old[1][0], chip->op_op1_old[0][0], 8 * sizeof(uint16_t));
+        memcpy(chip->op_op2[1][0], chip->op_op2[0][0], 8 * sizeof(uint16_t));
+
+        int mod1 = chip->op_mod1;
+        if (mod1 & 0x2000)
+            mod1 |= 0x4000;
+        int mod2 = chip->op_mod1;
+        if (mod2 & 0x2000)
+            mod2 |= 0x4000;
+        chip->op_modsum[0] = ((mod1 + mod2) >> 1) & 0x3fff;
+        chip->op_modsum[2] = chip->op_modsum[1];
+
+        chip->op_update_op1[1] = chip->op_update_op1[0];
+        chip->op_update_op2[1] = chip->op_update_op2[0];
+
+        chip->op_m1_op1[1] = chip->op_m1_op1[0];
+        chip->op_m1_op2[1] = chip->op_m1_op2[0];
+        chip->op_m1_prev[1] = chip->op_m1_prev[0];
+        chip->op_m2_op1[1] = chip->op_m2_op1[0];
+        chip->op_m2_prev[1] = chip->op_m2_prev[0];
     }
 }
 
