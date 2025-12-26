@@ -451,6 +451,8 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->timer_b_status[1] = chip->timer_b_status[0];
 
         chip->timer_b_subcnt[1] = chip->timer_b_subcnt[0];
+
+        chip->timer_irq = chip->timer_a_status[0] || chip->timer_a_status[1];
     }
 
     if (chip->fsm_cycle1 && chip->fsm_cycle1_l)
@@ -514,22 +516,22 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             if (test || chip->reg_match00)
             {
                 val &= ~0xffull;
-                val |= reg_data;
+                val |= (uint64_t)reg_data;
             }
             if (test || (chip->reg_match20_l[1] & 8) != 0)
             {
                 val &= ~0xff00ull;
-                val |= reg_data << 8;
+                val |= (uint64_t)reg_data << 8;
             }
             if (test || chip->reg_match28_l[1])
             {
                 val &= ~0xff0000ull;
-                val |= (reg_data & 0x7f) << 16;
+                val |= (uint64_t)(reg_data & 0x7f) << 16;
             }
             if (test || chip->reg_match30_l[1])
             {
                 val &= ~0xff000000ull;
-                val |= (reg_data & 0xfc) << 24;
+                val |= (uint64_t)(reg_data & 0xfc) << 24;
             }
             if (test || chip->reg_match30)
             {
@@ -543,22 +545,22 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             if (test || chip->reg_match40)
             {
                 val &= ~0xffull;
-                val |= reg_data & 0x7f;
+                val |= (uint64_t)reg_data & 0x7f;
             }
             if (test || chip->reg_match60)
             {
                 val &= ~0xff00ull;
-                val |= reg_data << 8;
+                val |= (uint64_t)reg_data << 8;
             }
             if (test || chip->reg_match80)
             {
                 val &= ~0xff0000ull;
-                val |= (reg_data & 0xdf) << 16;
+                val |= (uint64_t)(reg_data & 0xdf) << 16;
             }
             if (test || chip->reg_matcha0)
             {
                 val &= ~0xff000000ull;
-                val |= (reg_data & 0x9f) << 24;
+                val |= (uint64_t)(reg_data & 0x9f) << 24;
             }
             if (test || chip->reg_matchc0)
             {
@@ -1451,29 +1453,29 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
         memcpy(chip->eg_level[0][1], chip->eg_level[1][0], 30 * sizeof(uint16_t));
 
-        int inc = 0;
+        int linc = 0;
         if (chip->eg_linear)
         {
             if (chip->eg_inc1)
-                inc |= 1;
+                linc |= 1;
             if (chip->eg_inc2)
-                inc |= 2;
+                linc |= 2;
             if (chip->eg_inc3)
-                inc |= 4;
+                linc |= 4;
             if (chip->eg_inc4)
-                inc |= 8;
+                linc |= 8;
         }
         if (chip->eg_exponent)
         {
             int lvl = chip->eg_level[1][30];
             if (chip->eg_inc1)
-                inc |= ~lvl >> 4;
+                linc |= ~lvl >> 4;
             if (chip->eg_inc2)
-                inc |= ~lvl >> 3;
+                linc |= ~lvl >> 3;
             if (chip->eg_inc3)
-                inc |= ~lvl >> 2;
+                linc |= ~lvl >> 2;
             if (chip->eg_inc4)
-                inc |= ~lvl >> 1;
+                linc |= ~lvl >> 1;
         }
 
         int nextlevel = chip->eg_level[1][30];
@@ -1487,7 +1489,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
         chip->eg_nextlevel[0] = nextlevel;
 
-        chip->eg_inc = inc;
+        chip->eg_inc = linc;
 
         chip->eg_level[0][0] = chip->eg_nextlevel[1];
 
@@ -1913,6 +1915,276 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->op_m2_op1[1] = chip->op_m2_op1[0];
         chip->op_m2_prev[1] = chip->op_m2_prev[0];
     }
+
+    if (clk1)
+    {
+        chip->accm_noise_sync[1] = chip->accm_noise_sync[0];
+
+        chip->accm_sync_l = chip->fsm_acc_sync;
+
+        chip->accm_noise_bit[2] = chip->accm_noise_bit[1];
+        
+        int envbit = (chip->eg_dbg[1] >> 9) & 1;
+
+        chip->accm_env_rst[0] = chip->fsm_acc_sync;
+
+        if (chip->accm_env_rst[1])
+            chip->accm_env_active[0] = 0;
+        else
+            chip->accm_env_active[0] = chip->accm_env_active[1] | envbit;
+
+
+        int xr = chip->accm_noise_bit[3] ^ envbit;
+
+        chip->accm_noise_env[0] = (chip->accm_noise_env[1] << 1) | xr;
+
+        if (chip->fsm_acc_sync && chip->accm_sync_l)
+        {
+            chip->accm_noise_bit[0] = (chip->noise_lfsr[0] >> 15) & 1;
+            chip->accm_noise_bit_l = chip->accm_noise_bit[2];
+            chip->accm_env_active_l = chip->accm_env_active[0];
+            chip->accm_noise_env_l = (chip->accm_noise_env[0] >> 1) & 0x1ff;
+        }
+
+        chip->accm_input_l = chip->accm_mix_l ? chip->accm_input : 0;
+        if (chip->accm_input_l & 0x2000)
+            chip->accm_input_l |= 0x3c000;
+        chip->accm_input_r = chip->accm_mix_r ? chip->accm_input : 0;
+        if (chip->accm_input_r & 0x2000)
+            chip->accm_input_r |= 0x3c000;
+        
+
+        chip->accm_clear_l[1] = chip->accm_clear_l[0];
+        chip->accm_clear_r[1] = chip->accm_clear_r[0];
+
+        chip->accm_l[0] = (chip->accm_clear_l[0] & 1) != 0 ? 0 : chip->accm_l[1];
+        chip->accm_r[0] = (chip->accm_clear_r[0] & 1) != 0 ? 0 : chip->accm_r[1];
+        chip->accm_l[2] = chip->accm_l[1];
+        chip->accm_r[2] = chip->accm_r[1];
+
+        chip->accm_l_shifter[1] = chip->accm_l_shifter[0];
+        chip->accm_r_shifter[1] = chip->accm_r_shifter[0];
+
+        chip->accm_l_shifter_o[0] = chip->accm_l_shifter_o[1] << 1;
+        chip->accm_l_shifter_o[0] |= chip->accm_l_shifter[0] & 1;
+        chip->accm_r_shifter_o[0] = chip->accm_r_shifter_o[1] << 1;
+        chip->accm_r_shifter_o[0] |= chip->accm_r_shifter[0] & 1;
+
+        chip->accm_l_top[1] = chip->accm_l_top[0];
+        chip->accm_r_top[1] = chip->accm_r_top[0];
+
+        if ((chip->accm_clear_l[1] & 2) != 0 && (chip->accm_clear_l[0] & 2) != 0)
+        {
+            chip->accm_l_clamp_lo = 0;
+            chip->accm_l_clamp_hi = 0;
+            switch (chip->accm_l_top[1])
+            {
+                case 4:
+                case 5:
+                case 6:
+                    chip->accm_l_clamp_lo = 1;
+                    break;
+                case 1:
+                case 2:
+                case 3:
+                    chip->accm_l_clamp_hi = 1;
+                    break;
+            }
+        }
+        if ((chip->accm_clear_r[1] & 2) != 0 && (chip->accm_clear_r[0] & 2) != 0)
+        {
+            chip->accm_r_clamp_lo = 0;
+            chip->accm_r_clamp_hi = 0;
+            switch (chip->accm_r_top[1])
+            {
+            case 4:
+            case 5:
+            case 6:
+                chip->accm_r_clamp_lo = 1;
+                break;
+            case 1:
+            case 2:
+            case 3:
+                chip->accm_r_clamp_hi = 1;
+                break;
+            }
+        }
+        chip->accm_l_bit[1] = chip->accm_l_bit[0];
+        chip->accm_r_bit[1] = chip->accm_r_bit[0];
+
+        chip->accm_lr_sel[1] = chip->accm_lr_sel[0];
+
+        chip->accm_shifter[0] = chip->accm_shifter[1] >> 1;
+        chip->accm_shifter[0] |= chip->accm_lrbit << 20;
+
+        chip->accm_sync2[1] = chip->accm_sync2[0];
+
+
+        int bit = 0;
+
+        if (chip->accm_sync2[0] & 1)
+            bit |= chip->accm_sign;
+        if (chip->accm_sync2[0] & 2)
+            bit |= (chip->accm_shift >> 0) & 1;
+        if (chip->accm_sync2[0] & 4)
+            bit |= (chip->accm_shift >> 1) & 1;
+        if (chip->accm_sync2[0] & 8)
+            bit |= (chip->accm_shift >> 2) & 1;
+        if (!(chip->accm_sync2[0] & 15))
+        {
+            if (chip->accm_shift)
+                bit |= (chip->accm_shifter[1] >> (chip->accm_shift - 1)) & 1;
+        }
+
+        chip->accm_bit[0] = bit;
+        chip->accm_bit[2] = chip->accm_bit[1];
+    }
+    if (clk2)
+    {
+        chip->accm_noise_sync[0] = chip->fsm_out[6];
+
+        chip->accm_env_rst[1] = chip->accm_env_rst[0];
+        chip->accm_env_active[1] = chip->accm_env_active[0];
+
+        if (chip->reg_noise_en[0] && chip->accm_noise_sync[1])
+        {
+            int value = 0;
+            if (chip->accm_env_active_l)
+            {
+                value = chip->accm_noise_env_l << 3;
+                if (chip->accm_noise_bit_l)
+                    value |= 0x3007;
+            }
+            chip->accm_input = value;
+        }
+        else
+            chip->accm_input = chip->op_value[0][4];
+
+        chip->accm_noise_bit[1] = chip->accm_noise_bit[0];
+        chip->accm_noise_bit[3] = chip->accm_noise_bit[2];
+
+        chip->accm_noise_env[1] = chip->accm_noise_env[0];
+
+        chip->accm_mix_l = chip->op_mix && (chip->reg_con_fb_rl[0][5] & 0x40) != 0;
+        chip->accm_mix_r = chip->op_mix && (chip->reg_con_fb_rl[0][5] & 0x80) != 0;
+
+        chip->accm_l[1] = chip->accm_l[0] + chip->accm_input_l;
+        chip->accm_r[1] = chip->accm_r[0] + chip->accm_input_r;
+
+        chip->accm_clear_l[0] = (chip->accm_clear_l[1] << 1) | chip->fsm_out[5];
+        chip->accm_clear_r[0] = (chip->accm_clear_r[1] << 1) | chip->accm_noise_sync[1];
+
+        chip->accm_l_shifter[0] = chip->accm_l_shifter[1] >> 1;
+        chip->accm_r_shifter[0] = chip->accm_r_shifter[1] >> 1;
+        if (chip->accm_clear_l[1] & 1)
+        {
+            int value = chip->accm_l[2] & 0x7fff;
+            if ((chip->accm_l[2] & 0x20000) == 0)
+                value |= 0x8000;
+            chip->accm_l_shifter[0] |= value;
+        }
+        if (chip->accm_clear_r[1] & 1)
+        {
+            int value = chip->accm_r[2] & 0x7fff;
+            if ((chip->accm_r[2] & 0x20000) == 0)
+                value |= 0x8000;
+            chip->accm_r_shifter[0] |= value;
+        }
+
+        chip->accm_l_shifter_o[1] = chip->accm_l_shifter_o[0];
+        chip->accm_r_shifter_o[1] = chip->accm_r_shifter_o[0];
+
+        chip->accm_l_top[0] = (chip->accm_l[2] >> 15) & 7;
+        chip->accm_r_top[0] = (chip->accm_r[2] >> 15) & 7;
+
+        chip->accm_l_bit[0] = chip->accm_l_clamp_hi || (!chip->accm_l_clamp_lo && (chip->accm_l_shifter_o[0] & 4) != 0);
+        chip->accm_r_bit[0] = chip->accm_r_clamp_hi || (!chip->accm_r_clamp_lo && (chip->accm_r_shifter_o[0] & 4) != 0);
+        chip->accm_l_bit[2] = chip->accm_l_bit[1];
+        chip->accm_r_bit[2] = chip->accm_r_bit[1];
+
+        chip->accm_lr_sel[0] = chip->fsm_out[17];
+        chip->accm_lr_sel[2] = chip->accm_lr_sel[1];
+
+        chip->accm_shifter[1] = chip->accm_shifter[0];
+
+        chip->accm_sync2[0] = (chip->accm_sync2[1] << 1) | chip->fsm_out[8];
+
+        chip->accm_lrbit = chip->accm_lr_sel[2] ? chip->accm_r_bit[2] : chip->accm_l_bit[2];
+
+        if ((chip->accm_sync2[0] & 2) && (chip->accm_sync2[1] & 2) == 0)
+        {
+            chip->accm_topbits = (chip->accm_lrbit << 6) | (chip->accm_shifter[1] >> 5);
+        }
+
+        chip->accm_load = chip->fsm_out[15];
+
+        if (chip->accm_load)
+        {
+            chip->accm_sign = (chip->accm_topbits >> 6) & 1;
+            int top = chip->accm_topbits & 63;
+            if (!chip->accm_sign)
+                top ^= 63;
+
+            int shift = 0;
+            if (top & 32)
+                shift = 7;
+            else if (top & 16)
+                shift = 6;
+            else if (top & 8)
+                shift = 5;
+            else if (top & 4)
+                shift = 4;
+            else if (top & 2)
+                shift = 3;
+            else if (top & 1)
+                shift = 2;
+            else
+                shift = 1;
+            chip->accm_shift = shift;
+        }
+
+        chip->accm_bit[1] = chip->accm_bit[0];
+        chip->o_so = chip->accm_bit[2];
+    }
+
+    if (clk1)
+    {
+        chip->read_dbg_data = 0;
+        if (chip->reg_test[1] & 128)
+        {
+            chip->read_dbg_data |= (chip->pg_dbg[1] & 1) << 15;
+            int envbit = (chip->eg_dbg[1] >> 9) & 1;
+            chip->read_dbg_data |= (!envbit) << 14;
+            chip->read_dbg_data |= (chip->op_value[1][4] >> 8) & 0x3f;
+        }
+        else
+        {
+            chip->read_dbg_data |= chip->op_value[1][4] & 0xff;
+        }
+        chip->read_dbg = (chip->reg_test[1] >> 6) & 1;
+    }
+
+    if (chip->read_dbg)
+    {
+        chip->read_bus &= 0x83;
+        chip->read_bus |= chip->read_dbg_data;
+    }
+    else
+    {
+        chip->read_bus |= chip->busy_cnt_en[0] << 7;
+        chip->read_bus |= chip->timer_b_status[0] << 1;
+        chip->read_bus |= chip->timer_a_status[0] << 0;
+    }
+
+    if (!rd || chip->read_dbg)
+        chip->read_bus_latch = chip->read_bus & 0x83;
+
+    chip->o_data = chip->read_bus & 0x7c;
+    chip->o_data |= chip->read_bus_latch & 0x83;
+    chip->o_data_z = !rd;
+    chip->o_ct1 = (chip->reg_ct[1] >> 7) & 1;
+    chip->o_ct2 = (chip->reg_ct[1] >> 6) & 1;
+    chip->o_irq_pull = chip->timer_irq;
 }
 
 fmopm_t opm;

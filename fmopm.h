@@ -151,6 +151,7 @@ typedef struct {
     int timer_b_status[2];
     int timer_b_subcnt[2];
     int timer_b_subcnt_of;
+    int timer_irq;
 
     int busy_cnt[2];
     int busy_cnt_en[2];
@@ -309,7 +310,7 @@ typedef struct {
     int eg_level_lfo[3];
     int eg_tl[5];
     int eg_level_tl[2];
-    int eg_test[2];
+    int eg_test[3];
     int eg_out;
     int eg_dbg[2];
     int eg_pgreset[2];
@@ -343,10 +344,60 @@ typedef struct {
     int op_m1_op2[2];
     int op_m1_prev[2];
     int op_m2_op1[2];
-    int op_m2_op2[2];
     int op_m2_prev[2];
+
+    int accm_sync_l;
+    int accm_noise_sync[2];
+    int accm_clear_l[2];
+    int accm_clear_r[2];
+    int accm_input;
+    int accm_noise_bit[4];
+    int accm_noise_bit_l;
+    int accm_env_active_l;
+    int accm_env_active[2];
+    int accm_env_rst[2];
+    int accm_noise_env[2];
+    int accm_noise_env_l;
+    int accm_mix_l;
+    int accm_mix_r;
+    int accm_input_l;
+    int accm_input_r;
+    int accm_l[3];
+    int accm_r[3];
+    int accm_l_shifter[2];
+    int accm_r_shifter[2];
+    int accm_l_shifter_o[2];
+    int accm_r_shifter_o[2];
+    int accm_l_top[2];
+    int accm_r_top[2];
+    int accm_l_clamp_lo;
+    int accm_l_clamp_hi;
+    int accm_r_clamp_lo;
+    int accm_r_clamp_hi;
+    int accm_l_bit[3];
+    int accm_r_bit[3];
+    int accm_lr_sel[3];
+    int accm_shifter[2];
+    int accm_sync2[2];
+    int accm_lrbit;
+    int accm_topbits;
+    int accm_load;
+    int accm_sign;
+    int accm_shift;
+    int accm_bit[3];
+
+    int read_dbg;
+    int read_dbg_data;
+    int read_bus;
+    int read_bus_latch;
 
     int o_sy;
     int o_sh1;
     int o_sh2;
+    int o_so;
+    int o_data;
+    int o_data_z;
+    int o_ct1;
+    int o_ct2;
+    int o_irq_pull;
 } fmopm_t;
