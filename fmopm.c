@@ -106,9 +106,9 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
     int ic = !chip->ic;
 
 
-    int wr0 = (!chip->input.wr && !chip->input.a0 && !chip->input.cs) || chip->ic;
-    int wr1 = !chip->input.wr && chip->input.a0 && !chip->input.cs && !chip->ic;
-    int rd = !chip->input.rd && chip->input.a0 && !chip->input.cs && !chip->ic;
+    int wr0 = (!chip->input.wr && !chip->input.a0 && !chip->input.cs) || ic;
+    int wr1 = !chip->input.wr && chip->input.a0 && !chip->input.cs && !ic;
+    int rd = !chip->input.rd && chip->input.a0 && !chip->input.cs && !ic;
 
     if (clk1)
     {
@@ -132,7 +132,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
     }
     if (chip->write1_l[1])
         chip->write1_trig = 0;
-    else if (wr0)
+    else if (wr1)
         chip->write1_trig = 1;
     if (clk2)
     {
@@ -147,6 +147,12 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->data1 = chip->input.data;
     if (!chip->input.wr)
         chip->data2 = chip->input.data;
+
+    if (clk1 == chip->oclk1 && clk2 == chip->oclk2)
+        return;
+
+    chip->oclk1 = clk1;
+    chip->oclk2 = clk2;
 
     if (clk1)
     {
@@ -485,7 +491,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             chip->reg_data[0] = chip->data2;
         else
             chip->reg_data[0] = reg_data;
-        chip->reg_data_valid[0] = data_write && (chip->reg_data_valid[1] && !write0_en);
+        chip->reg_data_valid[0] = data_write || (chip->reg_data_valid[1] && !write0_en);
 
         int sync;
         if (chip->input.ym2164)
@@ -590,7 +596,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             memcpy(&chip->reg_ar_ks[0][1], &chip->reg_ar_ks[1][0], 31 * sizeof(uint8_t));
             memcpy(&chip->reg_d1r_am[0][1], &chip->reg_d1r_am[1][0], 31 * sizeof(uint8_t));
             memcpy(&chip->reg_d2r_dt2[0][1], &chip->reg_d2r_dt2[1][0], 31 * sizeof(uint8_t));
-            memcpy(&chip->reg_rr_d1l[0][1], &chip->reg_rr_d1l[10][0], 31 * sizeof(uint8_t));
+            memcpy(&chip->reg_rr_d1l[0][1], &chip->reg_rr_d1l[1][0], 31 * sizeof(uint8_t));
             if (ic)
             {
                 chip->reg_con_fb_rl[0][0] = 0;
@@ -708,12 +714,12 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
                 chip->reg_ramp_cnt[0][0] = 0;
             else
                 chip->reg_ramp_cnt[0][0] = chip->reg_ramp_cnt[1][7] + chip->reg_ramp_sync;
-            memcpy(chip->reg_ramp_cnt[0][1], chip->reg_ramp_cnt[1][0], 7 * sizeof(uint8_t));
+            memcpy(&chip->reg_ramp_cnt[0][1], &chip->reg_ramp_cnt[1][0], 7 * sizeof(uint8_t));
             chip->reg_ramp_step = match;
 
             chip->reg_tl_latch[0] = chip->reg_op_in[1] & 255;
             chip->reg_tl_latch[2] = chip->reg_tl_latch[1];
-            memcpy(chip->reg_tl_value[1][0], chip->reg_tl_value[0][0], 32 * sizeof(uint16_t));
+            memcpy(&chip->reg_tl_value[1][0], &chip->reg_tl_value[0][0], 32 * sizeof(uint16_t));
 
             chip->reg_tl_value_sum = chip->reg_tl_value_l + chip->reg_tl_add1;
             if (chip->reg_tl_add2)
@@ -726,11 +732,11 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             chip->reg_ch_latch = chip->reg_ch_bus;
             chip->reg_op_latch = chip->reg_op_bus;
             chip->reg_ramp_sync = (chip->reg_counter[0] & 24) == 0;
-            memcpy(chip->reg_ramp_cnt[1][0], chip->reg_ramp_cnt[0][0], 8 * sizeof(uint8_t));
+            memcpy(&chip->reg_ramp_cnt[1][0], &chip->reg_ramp_cnt[0][0], 8 * sizeof(uint8_t));
 
             chip->reg_tl_latch[1] = chip->reg_tl_latch[0];
 
-            memcpy(chip->reg_tl_value[0][1], chip->reg_tl_value[1][0], 31 * sizeof(uint16_t));
+            memcpy(&chip->reg_tl_value[0][1], &chip->reg_tl_value[1][0], 31 * sizeof(uint16_t));
 
             chip->reg_tl_value_l = chip->reg_tl_value[1][31];
 
@@ -1038,7 +1044,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
     if (clk1)
     {
-        int kfc = chip->reg_kf[1][1] | (chip->reg_kc[1][1] << 6);
+        int kfc = chip->reg_kf[1][0] | (chip->reg_kc[1][0] << 6);
         chip->freq_lfo_sign[1] = chip->freq_lfo_sign[0];
         chip->freq_lfo_sign[3] = chip->freq_lfo_sign[2];
 
@@ -1271,7 +1277,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         if (chip->pg_dbgsync)
             chip->pg_dbg[0] |= chip->pg_phase[1][30] & 1023;
 
-        chip->pg_out = chip->pg_phase[1][23] >> 10;
+        chip->pg_out = chip->pg_phase[0][23] >> 10;
     }
     if (clk2)
     {
@@ -1451,7 +1457,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->eg_rateks_l[1] = chip->eg_rateks_l[0];
 
 
-        memcpy(chip->eg_level[0][1], chip->eg_level[1][0], 30 * sizeof(uint16_t));
+        memcpy(&chip->eg_level[0][1], &chip->eg_level[1][0], 30 * sizeof(uint16_t));
 
         int linc = 0;
         if (chip->eg_linear)
@@ -1500,7 +1506,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->eg_ams = ams;
         chip->eg_lfo = chip->lfo_am[1];
 
-        int level_lfo = chip->lfo_am + chip->eg_level[1][28];
+        int level_lfo = chip->eg_lfo_am + chip->eg_level[1][28];
         chip->eg_level_lfo[0] = level_lfo;
         int level_lfo2 = chip->eg_level_lfo[1];
         if (level_lfo2 & 0x400)
@@ -1597,7 +1603,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             || (state >= eg_state_sustain && !chip->eg_off && !kon_event);
         chip->eg_exponent = !chip->eg_zero && state == eg_state_attack && kon && !chip->eg_maxrate[1];
 
-        chip->eg_instantattack = chip->eg_maxrate[0] && (!chip->eg_maxrate[0] || kon_event);
+        chip->eg_instantattack = chip->eg_maxrate[1] && (!chip->eg_maxrate[1] || kon_event);
 
         chip->eg_pgreset[0] = (chip->eg_pgreset[1] << 1) | kon_event;
 
@@ -1659,7 +1665,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
         chip->eg_rateks_l[0] = rateks2 & 3;
 
-        int inc12 = chip->eg_rate_lo[1] && chip->eg_shift_sum[1] == 13 && !chip->eg_zerorate2[1];
+        int inc12 = chip->eg_rate_lo[1] && chip->eg_shift_sum[1] == 12 && !chip->eg_zerorate2[1];
         int inc13 = chip->eg_rate_lo[1] && chip->eg_shift_sum[1] == 13 && (chip->eg_rateks_l[1] & 2) != 0;
         int inc14 = chip->eg_rate_lo[1] && chip->eg_shift_sum[1] == 14 && (chip->eg_rateks_l[1] & 1) != 0;
 
@@ -1671,7 +1677,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->eg_inc4 = egc && (chip->eg_inc4_c1 || chip->eg_inc4_c2);
 
 
-        memcpy(chip->eg_level[1][0], chip->eg_level[0][0], 31 * sizeof(uint16_t));
+        memcpy(&chip->eg_level[1][0], &chip->eg_level[0][0], 31 * sizeof(uint16_t));
 
         chip->eg_nextlevel[1] = chip->eg_nextlevel[0] + chip->eg_inc;
 
@@ -1694,7 +1700,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->eg_level_lfo[1] = chip->eg_level_lfo[0];
 
         chip->eg_tl[1] = chip->eg_tl[0];
-        chip->eg_tl[3] = chip->eg_tl[1];
+        chip->eg_tl[3] = chip->eg_tl[2];
 
         chip->eg_level_tl[0] = chip->eg_level_lfo[2] + (chip->eg_tl[4] << 3);
 
@@ -1715,7 +1721,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
     {
         chip->op_phase2[0] = (chip->op_phase + chip->op_mod_in[1]) & 1023;
 
-        if (chip->op_phase2[1] & 0x200)
+        if (chip->op_phase2[1] & 0x100)
             chip->op_phase_index[0] = ~chip->op_phase2[1] & 0xff;
         else
             chip->op_phase_index[0] = chip->op_phase2[1] & 0xff;
@@ -1757,7 +1763,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
         chip->op_pow[0] = chip->op_pow_base[1] + chip->op_pow_delta[1];
 
-        chip->op_shift[0] = chip->op_atten[0] >> 8;
+        chip->op_shift[0] = chip->op_atten[2] >> 8;
         chip->op_shift[2] = chip->op_shift[1];
 
         chip->op_pow_shift[0] = ((chip->op_pow[1] | 0x400) << 2) >> chip->op_shift[3];
@@ -1765,7 +1771,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             chip->op_pow_shift[0] |= 0x2000;
 
         int ps = chip->op_pow_shift[1];
-        if (chip->op_sign[1] & 128)
+        if (chip->op_sign[1] & 64)
             ps = (ps + 1) & 0x3fff;
         chip->op_value[0][0] = ps;
         if (chip->op_update_op1[1])
@@ -1782,10 +1788,10 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             chip->op_op2[0][0] = chip->op_value[1][4];
         else
             chip->op_op2[0][0] = chip->op_op2[1][7];
-        memcpy(chip->op_value[0][1], chip->op_value[1][0], 4 * sizeof(uint16_t));
-        memcpy(chip->op_op1[0][1], chip->op_op1[1][0], 7 * sizeof(uint16_t));
-        memcpy(chip->op_op1_old[0][1], chip->op_op1_old[1][0], 7 * sizeof(uint16_t));
-        memcpy(chip->op_op2[0][1], chip->op_op2[1][0], 7 * sizeof(uint16_t));
+        memcpy(&chip->op_value[0][1], &chip->op_value[1][0], 4 * sizeof(uint16_t));
+        memcpy(&chip->op_op1[0][1], &chip->op_op1[1][0], 7 * sizeof(uint16_t));
+        memcpy(&chip->op_op1_old[0][1], &chip->op_op1_old[1][0], 7 * sizeof(uint16_t));
+        memcpy(&chip->op_op2[0][1], &chip->op_op2[1][0], 7 * sizeof(uint16_t));
 
         int mod1 = 0;
 
@@ -1801,8 +1807,8 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         if (chip->op_m2_prev[1])
             mod2 |= chip->op_value[1][4];
         if (chip->op_m2_op1[1])
-            mod2 |= chip->op_op1[1][4];
-        chip->op_mod2 = mod1;
+            mod2 |= chip->op_op1[1][7];
+        chip->op_mod2 = mod2;
 
         chip->op_modsum[1] = chip->op_modsum[0];
 
@@ -1888,19 +1894,19 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->op_shift[1] = chip->op_shift[0];
         chip->op_shift[3] = chip->op_shift[2];
 
-        if (chip->op_sign[0] & 128)
+        if (chip->op_sign[0] & 64)
             chip->op_pow_shift[1] = chip->op_pow_shift[0] ^ 0x3fff;
         else
             chip->op_pow_shift[1] = chip->op_pow_shift[0];
-        memcpy(chip->op_value[1][0], chip->op_value[0][0], 5 * sizeof(uint16_t));
-        memcpy(chip->op_op1[1][0], chip->op_op1[0][0], 8 * sizeof(uint16_t));
-        memcpy(chip->op_op1_old[1][0], chip->op_op1_old[0][0], 8 * sizeof(uint16_t));
-        memcpy(chip->op_op2[1][0], chip->op_op2[0][0], 8 * sizeof(uint16_t));
+        memcpy(&chip->op_value[1][0], &chip->op_value[0][0], 5 * sizeof(uint16_t));
+        memcpy(&chip->op_op1[1][0], &chip->op_op1[0][0], 8 * sizeof(uint16_t));
+        memcpy(&chip->op_op1_old[1][0], &chip->op_op1_old[0][0], 8 * sizeof(uint16_t));
+        memcpy(&chip->op_op2[1][0], &chip->op_op2[0][0], 8 * sizeof(uint16_t));
 
         int mod1 = chip->op_mod1;
         if (mod1 & 0x2000)
             mod1 |= 0x4000;
-        int mod2 = chip->op_mod1;
+        int mod2 = chip->op_mod2;
         if (mod2 & 0x2000)
             mod2 |= 0x4000;
         chip->op_modsum[0] = ((mod1 + mod2) >> 1) & 0x3fff;
@@ -2113,7 +2119,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
         if ((chip->accm_sync2[0] & 2) && (chip->accm_sync2[1] & 2) == 0)
         {
-            chip->accm_topbits = (chip->accm_lrbit << 6) | (chip->accm_shifter[1] >> 5);
+            chip->accm_topbits = (chip->accm_lrbit << 6) | (chip->accm_shifter[1] >> 15);
         }
 
         chip->accm_load = chip->fsm_out[15];
@@ -2185,39 +2191,4 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
     chip->o_ct1 = (chip->reg_ct[1] >> 7) & 1;
     chip->o_ct2 = (chip->reg_ct[1] >> 6) & 1;
     chip->o_irq_pull = chip->timer_irq;
-}
-
-fmopm_t opm;
-
-int main()
-{
-    int i;
-    opm.input.cs = 1;
-    opm.input.wr = 1;
-    opm.input.rd = 1;
-    opm.input.ic = 1;
-    opm.input.a0 = 0;
-    opm.input.data = 0;
-    for (i = 0; i < 64 * 4; i++)
-    {
-        FMOPM_Clock(&opm, 0);
-        FMOPM_Clock(&opm, 1);
-    }
-    opm.input.ic = 0;
-    for (i = 0; i < 64 * 4; i++)
-    {
-        FMOPM_Clock(&opm, 0);
-        FMOPM_Clock(&opm, 1);
-    }
-    opm.input.ic = 1;
-    for (i = 0; i < 64 * 4; i++)
-    {
-        FMOPM_Clock(&opm, 0);
-        FMOPM_Clock(&opm, 1);
-    }
-    for (i = 0; i < 64 * 100; i++)
-    {
-        FMOPM_Clock(&opm, 0);
-        FMOPM_Clock(&opm, 1);
-    }
 }

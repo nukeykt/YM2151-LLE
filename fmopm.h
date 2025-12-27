@@ -18,6 +18,8 @@ typedef struct {
 
     int clk1;
     int clk2;
+    int oclk1;
+    int oclk2;
 
     int ic_latch[2];
     int ic_latch2[2];
