@@ -1044,7 +1044,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
     if (clk1)
     {
-        int kfc = chip->reg_kf[1][0] | (chip->reg_kc[1][0] << 6);
+        int kfc = (chip->reg_kf[1][0] >> 2) | (chip->reg_kc[1][0] << 6);
         chip->freq_lfo_sign[1] = chip->freq_lfo_sign[0];
         chip->freq_lfo_sign[3] = chip->freq_lfo_sign[2];
 
@@ -1073,7 +1073,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->freq_kc_lfo_of2[0] = sum2 >> 13;
 
         chip->freq_dt2[0] = (chip->reg_d2r_dt2[1][26] >> 6) & 3;
-        chip->freq_dt2[2] = chip->freq_dt2[0];
+        chip->freq_dt2[2] = chip->freq_dt2[1];
 
         chip->freq_kc_cliplow = (!chip->freq_kc_lfo_of[3] && chip->freq_lfo_sign[3]) || (!chip->freq_kc_lfo_of2[1] && chip->freq_kc_corr_sub[1]);
         chip->freq_kc_cliphigh = !chip->freq_lfo_sign[3] && (chip->freq_kc_lfo_of[3] || chip->freq_kc_lfo_of2[1]);
@@ -1197,6 +1197,8 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->freq_kc_dt[1] = chip->freq_kc_dt[0];
         chip->freq_kc_dt[3] = chip->freq_kc_dt[2];
 
+        chip->freq_dt2[1] = chip->freq_dt2[0];
+
         int dt2 = chip->freq_dt2[2] == 2;
         int c6 = chip->freq_kc_clipped_hi[1] & 1;
         int c7 = (chip->freq_kc_clipped_hi[1] >> 1) & 1;
@@ -1282,7 +1284,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
     if (clk2)
     {
         chip->pg_block[0] = chip->freq_kcode[3] >> 2;
-        chip->pg_freq = (chip->freq_fnum[2] << chip->pg_block[1]) >> 1;
+        chip->pg_freq = (chip->freq_fnum[2] << chip->pg_block[1]) >> 2;
 
         chip->dt_note[0] = chip->freq_kcode[3] & 3;
         chip->dt_blockmax[0] = (chip->freq_kcode[3] & 28) == 28;
@@ -1564,8 +1566,8 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         int s1 = chip->eg_state[1][1];
         if (chip->eg_kon1)
         {
-            s0 &= ~0x10000000;
-            s1 &= ~0x10000000;
+            s0 &= ~0x8000000;
+            s1 &= ~0x8000000;
         }
 
         chip->eg_rate_sel[0] = ((s0 >> 27) & 1) | ((s1 >> 26) & 2);
@@ -1819,7 +1821,9 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
                 chip->op_mod_in[0] = 0;
             else
             {
-                int16_t fbmod = chip->op_modsum[2] << 2;
+                int fbmod = chip->op_modsum[2];
+                if (fbmod & 0x2000)
+                    fbmod |= -0x4000;
 
                 chip->op_mod_in[0] = fbmod >> (9 - fb);
             }
@@ -1829,13 +1833,13 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
 
 
-        int con = chip->reg_con_fb_rl[1][4] & 3;
+        int con = chip->reg_con_fb_rl[1][4] & 7;
 
         int op = chip->fsm_op_cnt[1];
         chip->op_mix = fm_algorithm[op][5][con];
 
         chip->op_update_op1[0] = op == 0;
-        chip->op_update_op2[0] = (chip->op_update_op2[1] << 1) | (op == 1);
+        chip->op_update_op2[0] = (chip->op_update_op2[1] << 1) | (op == 2);
 
         int op_ = (op + 2) & 3;
         chip->op_m2_op1[0] = fm_algorithm[op_][0][con];
