@@ -1628,7 +1628,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         switch (chip->eg_ks)
         {
             case 0:
-                if ((chip->eg_zerorate[0] & 1) != 0)
+                if ((chip->eg_zerorate[0] & 1) == 0)
                     rks = chip->freq_kcode[3] >> 3;
                 break;
             case 1:
