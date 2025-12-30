@@ -467,7 +467,10 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
     if (clk1)
     {
-        int addr_write = (chip->data2 & 0xe0) != 0 && write0_en;
+        int valid_addr = (chip->data2 & 0xe0) != 0;
+        if (opp)
+            valid_addr |= (chip->data2 & 0xf8) == 0;
+        int addr_write = valid_addr && write0_en;
         if (ic)
             chip->reg_address[0] = 0;
         else if (addr_write)
@@ -750,11 +753,11 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
             memcpy(&chip->reg_tl_value[0][1], &chip->reg_tl_value[1][0], 31 * sizeof(uint16_t));
 
-            chip->reg_tl_value_l = chip->reg_tl_value[1][31];
+            chip->reg_tl_value_l = chip->reg_tl_value[1][30];
 
             if (chip->reg_ramp_step)
             {
-                int add = chip->reg_tl_latch[0] + ((chip->reg_tl_value[1][31] >> 3) ^ 127);
+                int add = (chip->reg_tl_latch[0] & 127) + ((chip->reg_tl_value[1][30] >> 3) ^ 127);
 
                 chip->reg_tl_add1 = (add >> 7) & 1;
                 chip->reg_tl_add2 = !chip->reg_tl_add1 && (add & 127) != 127;
