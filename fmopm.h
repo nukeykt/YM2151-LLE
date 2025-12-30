@@ -117,7 +117,7 @@ typedef struct {
     uint64_t reg_ch_bus;
     uint64_t reg_ch_latch;
     uint64_t reg_ch_in[2];
-    uint64_t reg_op_cell[8];
+    uint64_t reg_op_cell[32];
     uint64_t reg_op_bus;
     uint64_t reg_op_latch;
     uint64_t reg_op_in[2];
@@ -130,6 +130,12 @@ typedef struct {
     uint16_t reg_tl_value_sum;
     int reg_tl_add1;
     int reg_tl_add2;
+    int reg_rl[3];
+    uint8_t reg_fb[2][4];
+    int reg_con;
+    int reg_con_l;
+    int reg_pms;
+    uint8_t reg_dt2[2][27];
 
     int reg_kon_cnt[2];
     int reg_kon_match;
@@ -347,6 +353,7 @@ typedef struct {
     int op_m1_prev[2];
     int op_m2_op1[2];
     int op_m2_prev[2];
+    int op_test_bit;
 
     int accm_sync_l;
     int accm_noise_sync[2];
