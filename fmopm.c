@@ -722,7 +722,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
             chip->reg_tl_latch[0] = (chip->reg_op_in[1] >> 8) & 255;
             chip->reg_tl_latch[2] = chip->reg_tl_latch[1];
-            memcpy(&chip->reg_tl_value[1][0], &chip->reg_tl_value[0][0], 32 * sizeof(uint16_t));
+            memcpy(&chip->reg_tl_value[1][0], &chip->reg_tl_value[0][0], 31 * sizeof(uint16_t));
 
             chip->reg_tl_value_sum = chip->reg_tl_value_l + chip->reg_tl_add1;
             if (chip->reg_tl_add2)
@@ -751,7 +751,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
             chip->reg_tl_latch[1] = chip->reg_tl_latch[0];
 
-            memcpy(&chip->reg_tl_value[0][1], &chip->reg_tl_value[1][0], 31 * sizeof(uint16_t));
+            memcpy(&chip->reg_tl_value[0][1], &chip->reg_tl_value[1][0], 30 * sizeof(uint16_t));
 
             chip->reg_tl_value_l = chip->reg_tl_value[1][30];
 
