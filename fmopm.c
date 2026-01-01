@@ -1194,7 +1194,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
 
         chip->freq_freq_lerp_d_e = lerp_d + lerp_e;
 
-        chip->freq_fnum[0] = chip->freq_basefreq[2] + (chip->freq_freq_lerp >> 1) + chip->freq_freq_frac[1];
+        chip->freq_fnum[0] = chip->freq_basefreq[2] + (chip->freq_freq_lerp >> 1) + chip->freq_freq_frac[2];
         chip->freq_fnum[2] = chip->freq_fnum[1];
 
         chip->freq_kcode[1] = chip->freq_kcode[0];
