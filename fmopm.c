@@ -1307,8 +1307,6 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         chip->dt_note[1] = chip->dt_note[0];
         chip->dt_blockmax[1] = chip->dt_blockmax[0];
 
-        chip->dt_enable[1] = chip->dt_enable[0];
-
         chip->dt_sign[1] = chip->dt_sign[0];
 
         chip->dt_sum = chip->dt_add1 + chip->dt_add2 + 1;
@@ -1358,8 +1356,6 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             chip->dt_add2 |= 1;
         if (chip->pg_dt_multi & 0x20)
             chip->dt_add2 |= 2;
-
-        chip->dt_enable[0] = (chip->pg_dt_multi & 0x30) != 0;
 
         chip->dt_sign[0] = (chip->pg_dt_multi & 0x40) != 0;
 

@@ -266,7 +266,6 @@ typedef struct {
     int pg_dbg[2];
     int dt_add1;
     int dt_add2;
-    int dt_enable[2];
     int dt_sum;
     int dt_blockmax[2];
     int dt_note[2];
