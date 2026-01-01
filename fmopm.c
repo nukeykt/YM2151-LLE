@@ -2290,6 +2290,13 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
         }
         chip->read_dbg = (chip->reg_test[1] >> 6) & 1;
     }
+    if (clk2)
+    {
+        if (chip->reg_test[0] & 8)
+            chip->ct_test = chip->lfo_inc[1];
+        else
+            chip->ct_test = chip->reg_ct[0] & 1;
+    }
 
     if (chip->read_dbg)
     {
@@ -2309,7 +2316,10 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
     chip->o_data = chip->read_bus & 0x7c;
     chip->o_data |= chip->read_bus_latch & 0x83;
     chip->o_data_z = !rd;
-    chip->o_ct1 = (chip->reg_ct[1] >> 7) & 1;
-    chip->o_ct2 = (chip->reg_ct[1] >> 6) & 1;
+    int ct1 = chip->ct_test;
+    int ct2 = (chip->reg_ct[1] >> 1) & 1;
+    // FIXME
+    chip->o_ct1 = opp ? ct2 : ct1;
+    chip->o_ct2 = opp ? ct1 : ct2;
     chip->o_irq_pull = chip->timer_irq;
 }

@@ -422,6 +422,7 @@ typedef struct {
     int read_dbg_data;
     int read_bus;
     int read_bus_latch;
+    int ct_test;
 
     int o_sy;
     int o_sh1;
