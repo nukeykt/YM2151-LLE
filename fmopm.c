@@ -345,7 +345,7 @@ void FMOPM_Clock(fmopm_t* chip, int clk)
             if (write1_en && chip->reg_write_0f[1])
             {
                 chip->reg_noise_en[0] = (chip->data1 >> 7) & 1;
-                chip->reg_noise_freq[0] = chip->data1 & 15;
+                chip->reg_noise_freq[0] = chip->data1 & 31;
             }
             else
             {
